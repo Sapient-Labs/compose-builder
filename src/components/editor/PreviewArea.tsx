@@ -3,10 +3,28 @@ import { useLaunchpadStore } from "@/lib/state/store"
 import { resolveCatalogSelection } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
 import type { DiamondCompileResult } from "@/lib/compose-core/compiler"
+import type { Framework, HardhatToolbox } from "@/types/config"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { CodeBlock } from "@/components/ui/code-block"
-import { Code, Terminal, FileCode } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Code,
+  Terminal,
+  FileCode,
+  ShieldCheck,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  Gem,
+} from "lucide-react"
+import { DiamondGraph } from "@/components/graph/DiamondGraph"
 
 type ProjectFile = {
   path: string
@@ -15,7 +33,7 @@ type ProjectFile = {
 }
 
 export function PreviewArea() {
-  const { catalog, config } = useLaunchpadStore()
+  const { catalog, config, setConfig } = useLaunchpadStore()
   const [compileResult, setCompileResult] = useState<DiamondCompileResult>()
   const [compileError, setCompileError] = useState<string>()
   const [compiledSource, setCompiledSource] = useState("")
@@ -149,47 +167,95 @@ export function PreviewArea() {
     kind: "generated" as const,
   }
   const fileLabel = (path: string) => path.split("/").pop() ?? path
+  const validationIcon = compiling ? (
+    <Loader2
+      className="size-4 animate-spin text-amber-600 motion-reduce:animate-none group-data-[state=active]:text-amber-300 dark:text-amber-400 dark:group-data-[state=active]:text-amber-600"
+      aria-hidden="true"
+    />
+  ) : currentCompileError || hasCompilerErrors ? (
+    <AlertTriangle
+      className="size-4 text-destructive group-data-[state=active]:text-red-300 dark:group-data-[state=active]:text-red-700"
+      aria-hidden="true"
+    />
+  ) : isValidated ? (
+    <CheckCircle2
+      className="size-4 text-green-600 group-data-[state=active]:text-green-300 dark:text-green-400 dark:group-data-[state=active]:text-green-700"
+      aria-hidden="true"
+    />
+  ) : (
+    <ShieldCheck className="size-4" aria-hidden="true" />
+  )
 
   return (
     <div className="h-full flex flex-col bg-background">
       <div className="p-4 border-b flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Preview</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">Your application</h2>
           <p className="text-sm text-muted-foreground">
             {allFacets.length} facets selected
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Badge variant="secondary" className="animate-in fade-in">
             {config.baseKey === "none" ? "Blank" : selection.selectedBase.label}
           </Badge>
-          <Badge variant="outline">
-            {config.framework}
-          </Badge>
-          <Badge variant={isValidated ? "default" : "destructive"}>
-            {compiling ? "Compiling" : isValidated ? "Validated" : "Needs review"}
-          </Badge>
+          <Select
+            value={
+              config.framework === "hardhat"
+                ? `hardhat:${config.toolbox ?? "ethers"}`
+                : "foundry"
+            }
+            onValueChange={(value) => {
+              if (value === "foundry") {
+                setConfig({ framework: "foundry" })
+                return
+              }
+              const [framework, toolbox] = value.split(":") as [
+                Framework,
+                HardhatToolbox,
+              ]
+              setConfig({ framework, toolbox })
+            }}
+          >
+            <SelectTrigger
+              size="sm"
+              className="h-7 gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold shadow-none"
+              aria-label="Framework"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="foundry">foundry</SelectItem>
+              <SelectItem value="hardhat:ethers">hardhat · ethers</SelectItem>
+              <SelectItem value="hardhat:viem">hardhat · viem</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="code" className="h-full flex flex-col">
-          <div className="border-b px-4">
-            <TabsList>
+          <div className="border-b bg-muted/25 px-3 py-2">
+            <TabsList className="w-full">
               <TabsTrigger value="code">
-                <Code className="size-4 mr-2" />
+                <Code aria-hidden="true" />
                 Project
               </TabsTrigger>
               <TabsTrigger value="deploy">
-                <FileCode className="size-4 mr-2" />
+                <FileCode aria-hidden="true" />
                 Deploy Script
               </TabsTrigger>
               <TabsTrigger value="cli">
-                <Terminal className="size-4 mr-2" />
+                <Terminal aria-hidden="true" />
                 CLI Command
               </TabsTrigger>
-              <TabsTrigger value="validation">
+              <TabsTrigger value="validation" className="group">
+                {validationIcon}
                 Validation
+              </TabsTrigger>
+              <TabsTrigger value="graph">
+                <Gem aria-hidden="true" />
+                Graph
               </TabsTrigger>
             </TabsList>
           </div>
@@ -245,6 +311,10 @@ export function PreviewArea() {
                 className="h-full"
               />
             </div>
+          </TabsContent>
+
+          <TabsContent value="graph" className="m-0 flex-1 overflow-hidden">
+            <DiamondGraph className="h-full" />
           </TabsContent>
 
           <TabsContent value="validation" className="flex-1 overflow-auto m-0">

@@ -1,18 +1,30 @@
+import { useLaunchpadStore } from "@/lib/state/store"
 import { ConfigPanel } from "./ConfigPanel"
 import { PreviewArea } from "./PreviewArea"
+import { DiamondGraph } from "@/components/graph/DiamondGraph"
 
 export function EditorLayout() {
-  return (
-    <div className="h-[calc(100vh-4rem)] flex">
-      {/* Left Side Panel - Configuration */}
-      <div className="w-80 flex-shrink-0">
-        <ConfigPanel />
-      </div>
+  const { viewMode } = useLaunchpadStore()
+  const showConfig = viewMode === "config"
+  const showProject = viewMode === "project"
 
-      {/* Right Main Area - Preview */}
-      <div className="flex-1 overflow-hidden">
-        <PreviewArea />
-      </div>
+  return (
+    <div className="h-full flex overflow-hidden">
+      {showConfig && (
+        <div className="flex h-full min-w-0 flex-1 overflow-hidden">
+          <div className="flex h-full w-[min(28rem,42vw)] shrink-0 flex-col overflow-hidden border-r border-border">
+            <ConfigPanel />
+          </div>
+          <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+            <DiamondGraph className="h-full w-full" />
+          </div>
+        </div>
+      )}
+      {showProject && (
+        <div className="h-full min-w-0 flex-1 overflow-hidden">
+          <PreviewArea />
+        </div>
+      )}
     </div>
   )
 }

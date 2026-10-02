@@ -3,7 +3,8 @@ import { resolveCatalogSelection } from "@/lib/compose-core";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Diamond, Code, Terminal } from "lucide-react";
+import { Diamond, Code, Terminal, Gem } from "lucide-react";
+import { DiamondGraph } from "@/components/graph/DiamondGraph";
 
 export function PreviewPanel() {
   const { catalog, config } = useLaunchpadStore();
@@ -37,17 +38,21 @@ export function PreviewPanel() {
       </div>
 
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="summary">
-            <Diamond className="size-4 mr-2" />
+            <Diamond aria-hidden="true" />
             Summary
           </TabsTrigger>
           <TabsTrigger value="code">
-            <Code className="size-4 mr-2" />
+            <Code aria-hidden="true" />
             Diamond.sol
           </TabsTrigger>
+          <TabsTrigger value="graph">
+            <Gem aria-hidden="true" />
+            Graph
+          </TabsTrigger>
           <TabsTrigger value="cli">
-            <Terminal className="size-4 mr-2" />
+            <Terminal aria-hidden="true" />
             CLI Command
           </TabsTrigger>
         </TabsList>
@@ -108,6 +113,20 @@ export function PreviewPanel() {
               <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
                 <code>{generateDiamondPreview(selection, config)}</code>
               </pre>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="graph" className="min-h-[420px]">
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>Diamond Graph</CardTitle>
+              <CardDescription>
+                3D visual of the selected diamond composition
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="h-[420px] p-0">
+              <DiamondGraph className="h-full" showHeader={false} />
             </CardContent>
           </Card>
         </TabsContent>

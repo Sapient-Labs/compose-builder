@@ -7,19 +7,15 @@ import { Button } from "@/components/ui/button"
 import { CollapsibleSection } from "@/components/ui/collapsible"
 import { SearchInput } from "@/components/ui/search-input"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { ProgressBar } from "@/components/ui/progress-bar"
 import { cn } from "@/lib/utils"
-import { 
-  Layers, 
-  Puzzle, 
-  Library, 
-  Shield, 
+import {
+  Layers,
+  Puzzle,
+  Library,
+  Shield,
   Settings,
-  Hammer,
-  Pickaxe,
   User,
-  Users,
-  Keyboard
+  Users
 } from "lucide-react"
 
 export function ConfigPanel() {
@@ -72,49 +68,19 @@ export function ConfigPanel() {
     )
   }, [availableLibraries, librarySearch])
 
-  // Calculate progress
-  const totalConfigurable = 
-    availableExtensions.length + 
-    availableLibraries.length + 
-    accessBases.length + 
-    1 // framework
-  const selected = 
-    config.selectedExtensions.length + 
-    config.selectedLibraries.length + 
-    config.selectedAccess.length + 
-    1 // framework always selected
-  const progress = totalConfigurable > 0 ? (selected / totalConfigurable) * 100 : 0
-
   if (!catalog) return null
 
   return (
-    <div className="h-full overflow-y-auto bg-card border-r">
-      <div className="p-4 border-b space-y-3">
-        <div className="flex items-center justify-between">
+    <div className="h-full overflow-y-auto bg-background">
+      <div className="w-full">
+        <div className="p-4 border-b">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Settings className="size-5" />
-            Configuration
+            Build your application
           </h2>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
-                <Keyboard className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">
-              <div className="space-y-1 text-xs">
-                <p className="font-medium">Keyboard Shortcuts</p>
-                <p>↑/↓ - Navigate</p>
-                <p>Space - Toggle</p>
-                <p>Enter - Select</p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
         </div>
-        <ProgressBar value={progress} showLabel />
-      </div>
 
-      <div className="p-2 space-y-1">
+        <div className="p-2 space-y-1">
         {/* Base Selection - Always Open */}
         <CollapsibleSection 
           title="Base" 
@@ -382,60 +348,7 @@ export function ConfigPanel() {
           </CollapsibleSection>
         )}
 
-        {/* Framework */}
-        <CollapsibleSection 
-          title="Framework" 
-          defaultOpen={false}
-          icon={Hammer}
-          badge={
-            <Badge variant="secondary" className="ml-auto">
-              {config.framework === "foundry" ? "Foundry" : "Hardhat"}
-            </Badge>
-          }
-        >
-          <div className="space-y-3 pt-2">
-            <Button
-              variant={config.framework === "foundry" ? "default" : "outline"}
-              size="sm"
-              className="w-full justify-start gap-2 transition-all hover:scale-[1.02]"
-              onClick={() => setConfig({ framework: "foundry" })}
-            >
-              <Hammer className="size-4" />
-              Foundry
-            </Button>
-            <Button
-              variant={config.framework === "hardhat" ? "default" : "outline"}
-              size="sm"
-              className="w-full justify-start gap-2 transition-all hover:scale-[1.02]"
-              onClick={() => setConfig({ framework: "hardhat" })}
-            >
-              <Pickaxe className="size-4" />
-              Hardhat
-            </Button>
-
-            {config.framework === "hardhat" && (
-              <div className="space-y-2 pl-4 border-l-2 border-muted animate-in slide-in-from-left-2">
-                <p className="text-xs text-muted-foreground">Toolbox</p>
-                <Button
-                  variant={config.toolbox === "ethers" ? "default" : "outline"}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setConfig({ toolbox: "ethers" })}
-                >
-                  Ethers
-                </Button>
-                <Button
-                  variant={config.toolbox === "viem" ? "default" : "outline"}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setConfig({ toolbox: "viem" })}
-                >
-                  Viem
-                </Button>
-              </div>
-            )}
-          </div>
-        </CollapsibleSection>
+        </div>
       </div>
     </div>
   )

@@ -4,16 +4,24 @@ import type { BasesCatalog } from "@/types/catalog";
 import type { DiamondConfig, WizardStep } from "@/types/config";
 import { DEFAULT_CONFIG, WIZARD_STEPS } from "@/types/config";
 
+export type EditorViewMode = "config" | "project";
+
 type LaunchpadState = {
   config: DiamondConfig;
   catalog: BasesCatalog | null;
   currentStep: WizardStep;
+  viewMode: EditorViewMode;
+  sidebarCollapsed: boolean;
   isLoading: boolean;
   error: string | null;
 
   setConfig: (config: Partial<DiamondConfig>) => void;
   setCatalog: (catalog: BasesCatalog) => void;
   setCurrentStep: (step: WizardStep) => void;
+  setViewMode: (viewMode: EditorViewMode) => void;
+  toggleViewMode: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebar: () => void;
   nextStep: () => void;
   prevStep: () => void;
   setLoading: (loading: boolean) => void;
@@ -27,6 +35,8 @@ export const useLaunchpadStore = create<LaunchpadState>()(
       config: DEFAULT_CONFIG,
       catalog: null,
       currentStep: "base",
+      viewMode: "config",
+      sidebarCollapsed: false,
       isLoading: false,
       error: null,
 
@@ -38,6 +48,18 @@ export const useLaunchpadStore = create<LaunchpadState>()(
       setCatalog: (catalog) => set({ catalog }),
 
       setCurrentStep: (step) => set({ currentStep: step }),
+
+      setViewMode: (viewMode) => set({ viewMode }),
+
+      toggleViewMode: () =>
+        set((state) => ({
+          viewMode: state.viewMode === "config" ? "project" : "config",
+        })),
+
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+
+      toggleSidebar: () =>
+        set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       nextStep: () => {
         const { currentStep } = get();
@@ -67,6 +89,8 @@ export const useLaunchpadStore = create<LaunchpadState>()(
         set({
           config: DEFAULT_CONFIG,
           currentStep: "base",
+          viewMode: "config",
+          sidebarCollapsed: false,
           error: null,
         }),
     }),
@@ -75,6 +99,8 @@ export const useLaunchpadStore = create<LaunchpadState>()(
       partialize: (state) => ({
         config: state.config,
         currentStep: state.currentStep,
+        viewMode: state.viewMode,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
     }
   )

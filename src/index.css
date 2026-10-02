@@ -147,3 +147,18 @@
     font-family: var(--font-sans);
   }
 }
+
+.graph-label {
+  border-color: rgb(226 232 240 / 0.95);
+  background: rgb(255 255 255 / 0.96);
+  color: rgb(51 65 85);
+  pointer-events: none;
+}
+
+.graph-label[data-active="true"] {
+  border-color: rgb(203 213 225);
+  color: rgb(15 23 42);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.08),
+    0 2px 4px -2px rgb(0 0 0 / 0.06);
+}
