@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useLaunchpadStore } from "@/lib/state/store"
-import { resolveCatalogSelection } from "@/lib/compose-core"
+import { resolveCatalogSelection, uniqueStrings } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
-import type { DiamondCompileResult } from "@/lib/compose-core/compiler"
+import type {
+  CompileFacetInput,
+  DiamondCompileResult,
+  SelectorEntry,
+  StorageEntry,
+} from "@/lib/compose-core/compiler"
 import type { Framework, HardhatToolbox } from "@/types/config"
+import type { CatalogSelection } from "@/types/catalog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { CodeBlock } from "@/components/ui/code-block"
@@ -32,6 +38,62 @@ type ProjectFile = {
   kind: "generated" | "facet" | "module"
 }
 
+function selectedFacetNames(selection: CatalogSelection, config: { selectedExtensions: string[]; selectedLibraries: string[] }) {
+  return uniqueStrings([
+    ...Object.keys(selection.requiredFacets),
+    ...config.selectedExtensions,
+    ...config.selectedLibraries,
+  ])
+}
+
+function resolveFacetEntry(selection: CatalogSelection, name: string) {
+  return (
+    selection.requiredFacets[name] ||
+    selection.availableExtensions[name] ||
+    selection.availableGlobalLibraryFacets[name] ||
+    selection.availableAccessExtensions[name]
+  )
+}
+
+function templateUrl(entryPath: string) {
+  return `${import.meta.env.BASE_URL}templates/${entryPath.slice("./src/templates/".length)}`
+}
+
+function normalizeCompilePath(entryPath: string) {
+  return entryPath.startsWith("./") ? entryPath.slice(2) : entryPath
+}
+
+async function loadFacetCompileInputs(
+  selection: CatalogSelection,
+  config: { selectedExtensions: string[]; selectedLibraries: string[] },
+): Promise<CompileFacetInput[]> {
+  const names = selectedFacetNames(selection, config)
+  const manifestResponse = await fetch(`${import.meta.env.BASE_URL}compiler/compose-sources.json`)
+  if (!manifestResponse.ok) throw new Error("Compose source manifest unavailable.")
+  const manifest = (await manifestResponse.json()) as { sources: Record<string, string> }
+  const inputs: CompileFacetInput[] = []
+
+  for (const name of names) {
+    const entry = resolveFacetEntry(selection, name)
+    if (!entry) continue
+    let content: string | undefined
+    if (entry.path.startsWith("./src/templates/")) {
+      const response = await fetch(templateUrl(entry.path))
+      if (response.ok) content = await response.text()
+    } else if (manifest.sources[entry.path]) {
+      content = manifest.sources[entry.path]
+    }
+    if (!content) continue
+    inputs.push({
+      name,
+      path: normalizeCompilePath(entry.path),
+      content,
+    })
+  }
+
+  return inputs
+}
+
 export function PreviewArea() {
   const { catalog, config, setConfig } = useLaunchpadStore()
   const [compileResult, setCompileResult] = useState<DiamondCompileResult>()
@@ -41,9 +103,9 @@ export function PreviewArea() {
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([])
   const [selectedFile, setSelectedFile] = useState("contracts/Diamond.sol")
 
-  useEffect(() => {
-    if (!catalog) return
-    const selection = resolveCatalogSelection(
+  const selection = useMemo(() => {
+    if (!catalog) return null
+    return resolveCatalogSelection(
       catalog,
       config.baseKey,
       config.selectedLibraries,
@@ -51,24 +113,29 @@ export function PreviewArea() {
       config.selectedAccess,
       config.selectedAccessExtensions,
     )
-    const source = generateDiamondCode(selection, config, catalog)
-    const facets = [
-      ...Object.keys(selection.requiredFacets),
-      ...config.selectedExtensions,
-      ...config.selectedLibraries,
-    ]
-    const entries = facets.flatMap((facet) => {
-      const entry = selection.requiredFacets[facet] ||
-        selection.availableExtensions[facet] ||
-        selection.availableGlobalLibraryFacets[facet] ||
-        selection.availableAccessExtensions[facet]
+  }, [catalog, config])
+
+  const diamondCode = useMemo(() => {
+    if (!catalog || !selection) return ""
+    return generateDiamondCode(selection, config, catalog)
+  }, [catalog, selection, config])
+
+  const facetNames = useMemo(
+    () => (selection ? selectedFacetNames(selection, config) : []),
+    [selection, config],
+  )
+
+  useEffect(() => {
+    if (!catalog || !selection) return
+    const entries = facetNames.flatMap((facet) => {
+      const entry = resolveFacetEntry(selection, facet)
       return entry ? [entry] : []
     })
     const add = (files: ProjectFile[], file: ProjectFile) => {
       if (!files.some((item) => item.path === file.path)) files.push(file)
     }
     const nextFiles: ProjectFile[] = [
-      { path: "contracts/Diamond.sol", source, kind: "generated" },
+      { path: "contracts/Diamond.sol", source: diamondCode, kind: "generated" },
     ]
     fetch(`${import.meta.env.BASE_URL}compiler/compose-sources.json`)
       .then((response) => {
@@ -81,8 +148,7 @@ export function PreviewArea() {
             ? entry.path.slice(2)
             : entry.path
           if (entry.path.startsWith("./src/templates/")) {
-            const url = `${import.meta.env.BASE_URL}templates/${entry.path.slice("./src/templates/".length)}`
-            const response = await fetch(url)
+            const response = await fetch(templateUrl(entry.path))
             if (response.ok)
               add(nextFiles, {
                 path: displayPath,
@@ -104,54 +170,37 @@ export function PreviewArea() {
         setProjectFiles(nextFiles)
         setSelectedFile("contracts/Diamond.sol")
       })
-  }, [catalog, config])
+  }, [catalog, selection, facetNames, diamondCode])
 
   useEffect(() => {
-    if (!catalog) return
-    const selection = resolveCatalogSelection(
-      catalog,
-      config.baseKey,
-      config.selectedLibraries,
-      config.selectedExtensions,
-      config.selectedAccess,
-      config.selectedAccessExtensions,
-    )
-    const source = generateDiamondCode(selection, config, catalog)
+    if (!catalog || !selection || !diamondCode) return
     const controller = new AbortController()
-    compileDiamond(source, controller.signal)
-      .then((result) => {
+    let cancelled = false
+
+    loadFacetCompileInputs(selection, config)
+      .then(async (facetInputs) => {
+        if (cancelled || controller.signal.aborted) return
+        const result = await compileDiamond(diamondCode, facetInputs, controller.signal)
+        if (cancelled) return
         setCompileResult(result)
-        setCompiledSource(source)
+        setCompiledSource(diamondCode)
         setCompileError(undefined)
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted)
-          {
-            setCompileError(error instanceof Error ? error.message : "Compilation failed.")
-            setFailedSource(source)
-          }
+        if (cancelled || controller.signal.aborted) return
+        setCompileError(error instanceof Error ? error.message : "Compilation failed.")
+        setFailedSource(diamondCode)
       })
-    return () => controller.abort()
-  }, [catalog, config])
 
-  if (!catalog) return null
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [catalog, selection, diamondCode, config])
 
-  const selection = resolveCatalogSelection(
-    catalog,
-    config.baseKey,
-    config.selectedLibraries,
-    config.selectedExtensions,
-    config.selectedAccess,
-    config.selectedAccessExtensions
-  )
+  if (!catalog || !selection) return null
 
-  const allFacets = [
-    ...Object.keys(selection.requiredFacets),
-    ...config.selectedExtensions,
-    ...config.selectedLibraries,
-  ]
-
-  const diamondCode = generateDiamondCode(selection, config, catalog)
+  const allFacets = facetNames
   const cliCommand = buildCliCommand(config)
   const deployScript = generateDeployScript(selection, config)
   const currentCompileResult = compiledSource === diamondCode ? compileResult : undefined
@@ -160,7 +209,14 @@ export function PreviewArea() {
   const hasCompilerErrors = currentCompileResult?.diagnostics.some(
     (diagnostic) => diagnostic.severity === "error",
   )
-  const isValidated = !!currentCompileResult && !hasCompilerErrors && currentCompileResult.validation.ok
+  const validationMessages = currentCompileResult?.validation.messages ?? []
+  const selectors = currentCompileResult?.validation.selectors ?? []
+  const storage = currentCompileResult?.validation.storage ?? []
+  const collisionCount = currentCompileResult?.validation.collisionCount ?? 0
+  const isValidated =
+    !!currentCompileResult &&
+    !hasCompilerErrors &&
+    currentCompileResult.validation.ok
   const currentFile = projectFiles.find((file) => file.path === selectedFile) ?? {
     path: "contracts/Diamond.sol",
     source: diamondCode,
@@ -172,7 +228,7 @@ export function PreviewArea() {
       className="size-4 animate-spin text-amber-600 motion-reduce:animate-none group-data-[state=active]:text-amber-300 dark:text-amber-400 dark:group-data-[state=active]:text-amber-600"
       aria-hidden="true"
     />
-  ) : currentCompileError || hasCompilerErrors ? (
+  ) : currentCompileError || hasCompilerErrors || validationMessages.length > 0 ? (
     <AlertTriangle
       className="size-4 text-destructive group-data-[state=active]:text-red-300 dark:group-data-[state=active]:text-red-700"
       aria-hidden="true"
@@ -281,9 +337,6 @@ export function PreviewArea() {
                 </div>
               </aside>
               <div className="min-w-0 flex-1 p-4 h-full overflow-auto">
-                <div className="text-xs text-muted-foreground mb-2" title={currentFile.path}>
-                  {fileLabel(currentFile.path)}
-                </div>
                 <CodeBlock
                   code={currentFile.source}
                   language="solidity"
@@ -295,8 +348,8 @@ export function PreviewArea() {
 
           <TabsContent value="deploy" className="flex-1 overflow-auto m-0">
             <div className="p-4 h-full">
-              <CodeBlock 
-                code={deployScript} 
+              <CodeBlock
+                code={deployScript}
                 language={config.framework === "foundry" ? "solidity" : "typescript"}
                 className="h-full"
               />
@@ -305,8 +358,8 @@ export function PreviewArea() {
 
           <TabsContent value="cli" className="flex-1 overflow-auto m-0">
             <div className="p-4 h-full">
-              <CodeBlock 
-                code={cliCommand} 
+              <CodeBlock
+                code={cliCommand}
                 language="bash"
                 className="h-full"
               />
@@ -330,15 +383,26 @@ export function PreviewArea() {
                         : "Diamond needs review"}
                 </h3>
                 <p className="text-sm text-muted-foreground mt-2">
-                  This is a local compiler and adapter check, not a security audit
-                  or deployment approval.
+                  Local compiler and adapter check · not a security audit or
+                  deployment approval.
                 </p>
+                {currentCompileResult && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {allFacets.length} facet(s) · {selectors.length} selector(s) ·{" "}
+                    {storage.length} storage slot(s)
+                    {collisionCount > 0 && (
+                      <span className="text-destructive"> · {collisionCount} collision(s)</span>
+                    )}
+                  </p>
+                )}
               </div>
+
               {currentCompileError && (
                 <p className="text-sm text-destructive" role="alert">
                   {currentCompileError}
                 </p>
               )}
+
               {currentCompileResult && (
                 <>
                   <div className="grid grid-cols-2 gap-3 text-sm">
@@ -347,37 +411,124 @@ export function PreviewArea() {
                       <p className="text-muted-foreground">
                         {currentCompileResult.validation.creationBytes ?? 0} bytes
                       </p>
+                      {currentCompileResult.validation.creationHash && (
+                        <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
+                          {currentCompileResult.validation.creationHash}
+                        </p>
+                      )}
                     </div>
                     <div className="rounded-lg border p-3">
                       <strong>Runtime bytecode</strong>
                       <p className="text-muted-foreground">
                         {currentCompileResult.validation.runtimeBytes ?? 0} bytes
                       </p>
+                      {currentCompileResult.validation.runtimeHash && (
+                        <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
+                          {currentCompileResult.validation.runtimeHash}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  {currentCompileResult.validation.messages.length > 0 && (
+
+                  {validationMessages.length > 0 && (
                     <ul className="space-y-2 text-sm" role="list">
-                      {currentCompileResult.validation.messages.map((message) => (
+                      {validationMessages.map((message) => (
                         <li key={message} className="text-destructive">{message}</li>
                       ))}
                     </ul>
                   )}
+
+                  <div className="space-y-2">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <h3 className="font-semibold">Selectors</h3>
+                      <span className="text-xs text-muted-foreground">
+                        {selectors.length} exported function(s)
+                      </span>
+                    </div>
+                    {selectors.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No selectors available yet.
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/40 text-left">
+                              <th className="px-3 py-2 font-medium">Selector</th>
+                              <th className="px-3 py-2 font-medium">Signature</th>
+                              <th className="px-3 py-2 font-medium">Facet</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectors.map((entry) => (
+                              <SelectorRow
+                                key={`${entry.facet}-${entry.signature}-${entry.selector}`}
+                                entry={entry}
+                              />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <h3 className="font-semibold">Storage slots</h3>
+                      <span className="text-xs text-muted-foreground">
+                        {storage.length} ERC-8042 slot(s)
+                      </span>
+                    </div>
+                    {storage.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No storage positions declared in selected facets.
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/40 text-left">
+                              <th className="px-3 py-2 font-medium">Label</th>
+                              <th className="px-3 py-2 font-medium">Constant</th>
+                              <th className="px-3 py-2 font-medium">Facets</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {storage.map((entry) => (
+                              <StorageRow key={entry.label} entry={entry} />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
                   {currentCompileResult.diagnostics.length > 0 && (
                     <div className="space-y-2">
                       <h3 className="font-semibold">Compiler diagnostics</h3>
                       {currentCompileResult.diagnostics.map((diagnostic, index) => (
-                        <pre key={`${diagnostic.severity}-${index}`} className="whitespace-pre-wrap text-xs text-muted-foreground">
+                        <pre
+                          key={`${diagnostic.severity}-${index}`}
+                          className={`whitespace-pre-wrap text-xs ${
+                            diagnostic.severity === "error"
+                              ? "text-destructive"
+                              : diagnostic.severity === "warning"
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-muted-foreground"
+                          }`}
+                        >
                           {diagnostic.message}
                         </pre>
                       ))}
                     </div>
                   )}
-                  {currentCompileResult.diagnostics.length === 0 &&
-                    currentCompileResult.validation.messages.length === 0 && (
-                      <p className="text-sm text-green-500">
-                        No compiler errors. Constructor, fallback and EVM size checks passed.
-                      </p>
-                    )}
+
+                  {isValidated && (
+                    <p className="text-sm text-green-500">
+                      No compiler errors. Constructor, fallback, EVM size,
+                      exportSelectors and selector uniqueness checks passed.
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -385,6 +536,36 @@ export function PreviewArea() {
         </Tabs>
       </div>
     </div>
+  )
+}
+
+function SelectorRow({ entry }: { entry: SelectorEntry }) {
+  return (
+    <tr
+      className={`border-b last:border-b-0 ${entry.collision ? "bg-destructive/10" : ""}`}
+    >
+      <td className="px-3 py-2 font-mono text-xs">{entry.selector}</td>
+      <td className="px-3 py-2">{entry.signature}</td>
+      <td className={`px-3 py-2 ${entry.collision ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+        {entry.facet}
+        {entry.collision && <span className="ml-2 text-xs">collision</span>}
+      </td>
+    </tr>
+  )
+}
+
+function StorageRow({ entry }: { entry: StorageEntry }) {
+  return (
+    <tr className="border-b last:border-b-0">
+      <td className="px-3 py-2 font-medium">{entry.label}</td>
+      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+        keccak256("{entry.label}")
+        <span className="block text-[10px] opacity-70">{entry.constant}</span>
+      </td>
+      <td className="px-3 py-2 text-muted-foreground">
+        {entry.facets.join(", ")}
+      </td>
+    </tr>
   )
 }
 
@@ -436,28 +617,19 @@ function generateDiamondCode(
   catalog: any
 ): string {
   const pragma = catalog.globals.diamond?.pragma || ">=0.8.30"
-  const facets = [
-    ...Object.keys(selection.requiredFacets),
-    ...config.selectedExtensions,
-    ...config.selectedLibraries,
-  ]
-  const entries = facets.map((facet) =>
-    selection.requiredFacets[facet] ||
-    selection.availableExtensions[facet] ||
-    selection.availableGlobalLibraryFacets[facet] ||
-    selection.availableAccessExtensions[facet],
-  ).filter(Boolean)
+  const facets = selectedFacetNames(selection, config)
+  const entries = facets.map((facet) => resolveFacetEntry(selection, facet)).filter(Boolean)
   const constructorEntries = [
     ...new Map(
       entries
-        .flatMap((entry) => entry.constructor ?? [])
+        .flatMap((entry) => (Array.isArray(entry.constructor) ? entry.constructor : []))
         .map((entry) => [entry.code, entry]),
     ).values(),
   ]
   const initializerModules = [
     ...new Set(
       entries
-        .filter((entry) => entry.constructor?.length && entry.mod)
+        .filter((entry) => (Array.isArray(entry.constructor) && entry.constructor.length > 0) && entry.mod)
         .map((entry) => entry.mod!),
     ),
   ]
@@ -509,11 +681,7 @@ function generateDeployScript(
   selection: ReturnType<typeof resolveCatalogSelection>,
   config: { framework: string; toolbox?: string; selectedExtensions: string[]; selectedLibraries: string[] }
 ): string {
-  const facets = [
-    ...Object.keys(selection.requiredFacets),
-    ...config.selectedExtensions,
-    ...config.selectedLibraries,
-  ]
+  const facets = selectedFacetNames(selection, config)
 
   if (config.framework === "foundry") {
     return `// SPDX-License-Identifier: MIT

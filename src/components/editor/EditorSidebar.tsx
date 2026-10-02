@@ -26,7 +26,7 @@ export function EditorSidebar() {
           sidebarCollapsed && "justify-center px-0"
         )}
       >
-        <img src="/favicon.svg" alt="" className="size-4 shrink-0" />
+        <img src="/logo.svg" alt="Compose" className="size-4 shrink-0" />
         {!sidebarCollapsed && (
           <span className="font-semibold truncate">Compose Launchpad</span>
         )}
@@ -46,7 +46,7 @@ export function EditorSidebar() {
                   "focus-visible:ring-ring/50 focus-visible:ring-[3px]",
                   sidebarCollapsed ? "justify-center px-0" : "justify-start",
                   active
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                    ? "text-sidebar-primary"
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 )}
                 aria-current={active ? "page" : undefined}

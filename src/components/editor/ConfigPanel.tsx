@@ -303,7 +303,17 @@ export function ConfigPanel() {
                           onClick={() => {
                             const newAccess = isSelected
                               ? config.selectedAccess.filter((a) => a !== key)
-                              : [...config.selectedAccess, key]
+                              : [
+                                  ...config.selectedAccess.filter(
+                                    (a) =>
+                                      !accessBases.some(
+                                        ([accessKey, accessDefinition]) =>
+                                          accessKey === a &&
+                                          accessDefinition.accessType === "ownership"
+                                      )
+                                  ),
+                                  key,
+                                ]
                             setConfig({ selectedAccess: newAccess })
                           }}
                         >

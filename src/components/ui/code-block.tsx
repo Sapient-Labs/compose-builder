@@ -1,8 +1,10 @@
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
+import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { Button } from "@/components/ui/button"
 import { Copy, Check } from "lucide-react"
 import { useState } from "react"
+import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 
 interface CodeBlockProps {
@@ -19,6 +21,7 @@ export function CodeBlock({
   showCopyButton = true 
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
+  const { resolvedTheme } = useTheme()
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code)
@@ -50,7 +53,7 @@ export function CodeBlock({
       )}
       <SyntaxHighlighter
         language={language}
-        style={oneDark}
+         style={resolvedTheme === "dark" ? oneDark : oneLight}
         customStyle={{
           margin: 0,
           padding: "1rem",

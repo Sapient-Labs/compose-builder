@@ -126,7 +126,7 @@ export function PreviewPanel() {
               </CardDescription>
             </CardHeader>
             <CardContent className="h-[420px] p-0">
-              <DiamondGraph className="h-full" showHeader={false} />
+              <DiamondGraph className="h-full" />
             </CardContent>
           </Card>
         </TabsContent>

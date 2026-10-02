@@ -7,6 +7,25 @@ export type CompilerDiagnostic = {
   sourceLocation?: { file?: string; start?: number; end?: number };
 };
 
+export type CompileFacetInput = {
+  name: string;
+  path: string;
+  content: string;
+};
+
+export type SelectorEntry = {
+  selector: string;
+  signature: string;
+  facet: string;
+  collision: boolean;
+};
+
+export type StorageEntry = {
+  label: string;
+  constant: string;
+  facets: string[];
+};
+
 export type DiamondValidation = {
   ok: boolean;
   messages: string[];
@@ -14,12 +33,21 @@ export type DiamondValidation = {
   runtimeHash?: string;
   creationBytes?: number;
   runtimeBytes?: number;
+  selectors: SelectorEntry[];
+  storage: StorageEntry[];
+  collisionCount: number;
 };
 
 export type DiamondCompileResult = {
   diagnostics: CompilerDiagnostic[];
   validation: DiamondValidation;
 };
+
+export const PINNED_SOLC_VERSION = "0.8.30";
+const RUNTIME_BYTECODE_LIMIT = 24576;
+const CREATION_BYTECODE_LIMIT = 49152;
+const STORAGE_POSITION_PATTERN =
+  /bytes32\s+(?:constant\s+)?(\w*STORAGE_POSITION\w*)\s*=\s*keccak256\("([^"]+)"\)/g;
 
 const compilerSettings = {
   optimizer: { enabled: true, runs: 200 },
@@ -39,55 +67,18 @@ function hexBytes(value: unknown) {
     : 0;
 }
 
-function validateContract(output: Record<string, any>): DiamondValidation {
-  const messages: string[] = [];
-  const contract = output.contracts?.["contracts/Diamond.sol"]?.Diamond;
-  if (!contract) return { ok: false, messages: ["Diamond.sol did not produce a Diamond contract."] };
-  const abi = Array.isArray(contract.abi) ? contract.abi : [];
-  const constructor = abi.find((item: { type?: string }) => item.type === "constructor");
-  if (
-    !constructor ||
-    constructor.stateMutability !== "nonpayable" ||
-    constructor.inputs?.length !== 1 ||
-    constructor.inputs[0]?.type !== "address[]"
-  )
-    messages.push("The generated Diamond must have one nonpayable address[] constructor.");
-  if (!abi.some((item: { type?: string }) => item.type === "fallback"))
-    messages.push("The generated Diamond has no fallback route.");
-  const creation = contract.evm?.bytecode?.object ?? "";
-  const runtime = contract.evm?.deployedBytecode?.object ?? "";
-  const creationBytes = hexBytes(creation);
-  const runtimeBytes = hexBytes(runtime);
-  if (!creationBytes) messages.push("The generated Diamond has no creation bytecode.");
-  if (creationBytes > 49152) messages.push("Creation bytecode exceeds the EVM limit.");
-  if (runtimeBytes > 24576) messages.push("Runtime bytecode exceeds the EVM limit.");
-  return {
-    ok: messages.length === 0,
-    messages,
-    creationHash: creation ? keccak256(`0x${creation}` as Hex) : undefined,
-    runtimeHash: runtime ? keccak256(`0x${runtime}` as Hex) : undefined,
-    creationBytes,
-    runtimeBytes,
-  };
+function normalizeFacetPath(path: string): string {
+  return path.startsWith("./") ? path.slice(2) : path;
 }
 
-export async function compileDiamond(
-  source: string,
-  signal?: AbortSignal,
-): Promise<DiamondCompileResult> {
-  const manifestResponse = await fetch(
-    `${import.meta.env.BASE_URL}compiler/compose-sources.json`,
-    { signal },
-  );
-  if (!manifestResponse.ok) throw new Error("The pinned Compose sources could not load.");
-  const manifest = (await manifestResponse.json()) as {
-    sources: Record<string, string>;
-  };
-  const allSources = manifest.sources;
+function buildSourceClosure(
+  requested: Record<string, string>,
+  allSources: Record<string, string>,
+): Record<string, string> {
   const closure: Record<string, string> = {};
-  const pending = ["contracts/Diamond.sol"];
-  const requested: Record<string, string> = { "contracts/Diamond.sol": source };
+  const pending = Object.keys(requested);
   const importPattern = /\bimport\s+(?:[^"']+\s+from\s+)?["']([^"']+)["']/g;
+
   while (pending.length) {
     const sourceName = pending.pop()!;
     if (Object.hasOwn(closure, sourceName)) continue;
@@ -108,14 +99,225 @@ export async function compileDiamond(
       pending.push(sourcePath);
     }
   }
+
+  return closure;
+}
+
+function emptyValidation(messages: string[] = []): DiamondValidation {
+  return {
+    ok: messages.length === 0,
+    messages,
+    selectors: [],
+    storage: [],
+    collisionCount: 0,
+  };
+}
+
+function collectStorageEntries(facetInputs: CompileFacetInput[]): StorageEntry[] {
+  const byLabel = new Map<string, { constants: Set<string>; facets: Set<string> }>();
+
+  for (const facet of facetInputs) {
+    for (const match of facet.content.matchAll(STORAGE_POSITION_PATTERN)) {
+      const constant = match[1]!;
+      const label = match[2]!;
+      const entry = byLabel.get(label) ?? { constants: new Set<string>(), facets: new Set<string>() };
+      entry.constants.add(constant);
+      entry.facets.add(facet.name);
+      byLabel.set(label, entry);
+    }
+  }
+
+  return [...byLabel.entries()]
+    .map(([label, entry]) => ({
+      label,
+      constant: [...entry.constants].sort().join(", "),
+      facets: [...entry.facets].sort(),
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function collectSelectorEntries(
+  output: Record<string, any>,
+  facetInputs: CompileFacetInput[],
+): { selectors: SelectorEntry[]; collisionCount: number; messages: string[] } {
+  const selectors: SelectorEntry[] = [];
+  const messages: string[] = [];
+  const bySelector = new Map<string, string[]>();
+
+  for (const facet of facetInputs) {
+    const contract =
+      output.contracts?.[facet.path]?.[facet.name] ??
+      (output.contracts?.[facet.path]
+        ? Object.values(output.contracts[facet.path])[0]
+        : undefined);
+
+    if (!contract) {
+      messages.push(`Facet did not produce a ${facet.name} contract.`);
+      continue;
+    }
+
+    const runtime = contract.evm?.deployedBytecode?.object ?? "";
+    const runtimeBytes = hexBytes(runtime);
+    if (runtimeBytes > RUNTIME_BYTECODE_LIMIT) {
+      messages.push(
+        `${facet.name} runtime bytecode exceeds the EVM limit (${runtimeBytes} > ${RUNTIME_BYTECODE_LIMIT} bytes).`,
+      );
+    }
+
+    const abi = Array.isArray(contract.abi) ? contract.abi : [];
+    const hasExportSelectors = abi.some(
+      (item: { type?: string; name?: string }) =>
+        item.type === "function" && item.name === "exportSelectors",
+    );
+    if (!hasExportSelectors) {
+      messages.push(
+        `${facet.name} is missing exportSelectors(). Diamond adapter registration will fail.`,
+      );
+    }
+
+    const methodIdentifiers: Record<string, string> =
+      contract.evm?.methodIdentifiers ?? {};
+    for (const [signature, selector] of Object.entries(methodIdentifiers)) {
+      if (signature === "exportSelectors()") continue;
+      const normalized = selector.startsWith("0x") ? selector.toLowerCase() : `0x${selector.toLowerCase()}`;
+      const owners = bySelector.get(normalized) ?? [];
+      if (!owners.includes(facet.name)) owners.push(facet.name);
+      bySelector.set(normalized, owners);
+      selectors.push({
+        selector: normalized,
+        signature,
+        facet: facet.name,
+        collision: false,
+      });
+    }
+  }
+
+  let collisionCount = 0;
+  for (const entry of selectors) {
+    const owners = bySelector.get(entry.selector) ?? [];
+    if (owners.length > 1) {
+      entry.collision = true;
+      collisionCount += 1;
+    }
+  }
+
+  if (collisionCount > 0) {
+    const collisionDetails = [...bySelector.entries()]
+      .filter(([, owners]) => owners.length > 1)
+      .map(([selector, owners]) => `${selector} claimed by ${owners.join(", ")}`);
+    messages.push(`Selector collision: ${collisionDetails.join("; ")}.`);
+  }
+
+  selectors.sort((left, right) => {
+    if (left.signature === right.signature) return left.facet.localeCompare(right.facet);
+    return left.signature.localeCompare(right.signature);
+  });
+
+  return { selectors, collisionCount, messages };
+}
+
+function validateDiamondOutput(
+  output: Record<string, any>,
+  facetInputs: CompileFacetInput[],
+): DiamondValidation {
+  const messages: string[] = [];
+  const contract = output.contracts?.["contracts/Diamond.sol"]?.Diamond;
+  if (!contract)
+    return emptyValidation(["Diamond.sol did not produce a Diamond contract."]);
+
+  const abi = Array.isArray(contract.abi) ? contract.abi : [];
+  const constructor = abi.find((item: { type?: string }) => item.type === "constructor");
+  const constructorOk =
+    !!constructor &&
+    constructor.stateMutability === "nonpayable" &&
+    constructor.inputs?.length === 1 &&
+    constructor.inputs[0]?.type === "address[]";
+  if (!constructorOk)
+    messages.push("The generated Diamond must have one nonpayable address[] constructor.");
+
+  const hasFallback = abi.some((item: { type?: string }) => item.type === "fallback");
+  if (!hasFallback) messages.push("The generated Diamond has no fallback route.");
+
+  const creation = contract.evm?.bytecode?.object ?? "";
+  const runtime = contract.evm?.deployedBytecode?.object ?? "";
+  const creationBytes = hexBytes(creation);
+  const runtimeBytes = hexBytes(runtime);
+  if (!creationBytes) messages.push("The generated Diamond has no creation bytecode.");
+  if (creationBytes > CREATION_BYTECODE_LIMIT)
+    messages.push("Creation bytecode exceeds the EVM limit.");
+  if (runtimeBytes > RUNTIME_BYTECODE_LIMIT)
+    messages.push("Runtime bytecode exceeds the EVM limit.");
+
+  const selectorResult = collectSelectorEntries(output, facetInputs);
+  messages.push(...selectorResult.messages);
+
+  const storage = collectStorageEntries(facetInputs);
+  const inspectFacet = facetInputs.find((facet) => facet.name === "DiamondInspectFacet");
+  if (facetInputs.length > 0 && !inspectFacet) {
+    messages.push("DiamondInspectFacet is required for loupe introspection and is missing.");
+  } else if (inspectFacet) {
+    const methodIdentifiers: Record<string, string> =
+      output.contracts?.[inspectFacet.path]?.DiamondInspectFacet?.evm?.methodIdentifiers ?? {};
+    const loupeSelectors = [
+      "facetAddress(bytes4)",
+      "facetFunctionSelectors(address)",
+      "facetAddresses()",
+      "facets()",
+    ];
+    const missingLoupe = loupeSelectors.filter(
+      (signature) => !(signature in methodIdentifiers),
+    );
+    if (missingLoupe.length > 0) {
+      messages.push(
+        `DiamondInspectFacet is missing loupe selectors: ${missingLoupe.join(", ")}.`,
+      );
+    }
+  }
+
+  return {
+    ok: messages.length === 0,
+    messages,
+    creationHash: creation ? keccak256(`0x${creation}` as Hex) : undefined,
+    runtimeHash: runtime ? keccak256(`0x${runtime}` as Hex) : undefined,
+    creationBytes,
+    runtimeBytes,
+    selectors: selectorResult.selectors,
+    storage,
+    collisionCount: selectorResult.collisionCount,
+  };
+}
+
+export async function compileDiamond(
+  source: string,
+  facetInputs: CompileFacetInput[] = [],
+  signal?: AbortSignal,
+): Promise<DiamondCompileResult> {
+  const manifestResponse = await fetch(
+    `${import.meta.env.BASE_URL}compiler/compose-sources.json`,
+    { signal },
+  );
+  if (!manifestResponse.ok) throw new Error("The pinned Compose sources could not load.");
+  const manifest = (await manifestResponse.json()) as {
+    sources: Record<string, string>;
+  };
+  const allSources = manifest.sources;
+  const requested: Record<string, string> = { "contracts/Diamond.sol": source };
+  for (const facet of facetInputs) {
+    const path = normalizeFacetPath(facet.path);
+    requested[path] = facet.content;
+  }
+
+  const closure = buildSourceClosure(requested, allSources);
+  const normalizedFacets = facetInputs.map((facet) => ({
+    ...facet,
+    path: normalizeFacetPath(facet.path),
+  }));
+
   const input = {
     language: "Solidity",
-    sources: {
-      ...Object.fromEntries(
-        Object.entries(closure).map(([name, content]) => [name, { content }]),
-      ),
-      "contracts/Diamond.sol": { content: source },
-    },
+    sources: Object.fromEntries(
+      Object.entries(closure).map(([name, content]) => [name, { content }]),
+    ),
     settings: compilerSettings,
   };
   const worker = new Worker(`${import.meta.env.BASE_URL}compiler/solc-worker.js`);
@@ -144,7 +346,7 @@ export async function compileDiamond(
           message: item.formattedMessage ?? item.message ?? "Compiler diagnostic",
           sourceLocation: item.sourceLocation,
         }));
-        const validation = validateContract(output);
+        const validation = validateDiamondOutput(output, normalizedFacets);
         finish(undefined, { diagnostics, validation });
       } catch (error) {
         finish(error instanceof Error ? error : new Error("Compilation failed."));

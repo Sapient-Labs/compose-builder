@@ -63,6 +63,10 @@ export function resolveCatalogSelection(
   const accessBases = getAccessBases(catalog, selectedBaseKey);
   const selectedGlobalLibraries: string[] = [];
   const selectedAccessBaseKeys: string[] = [];
+  const normalizedSelectedAccessBases = normalizeAccessBaseSelection(
+    accessBases,
+    selectedAccessBases
+  );
 
   for (const libraryName of uniqueStrings(selectedLibraries)) {
     const isGlobalLibrary = libraryName in availableGlobalLibraryFacets;
@@ -77,7 +81,7 @@ export function resolveCatalogSelection(
     );
   }
 
-  for (const accessName of uniqueStrings(selectedAccessBases)) {
+  for (const accessName of normalizedSelectedAccessBases) {
     if (accessName === selectedBaseKey && selectedBase.access === true) {
       throw new Error(
         `Base ${selectedBaseKey} is already selected and cannot also be selected as an access layer.`
@@ -140,6 +144,26 @@ export function resolveCatalogSelection(
     availableExtensions,
     availableAccessExtensions,
   };
+}
+
+/** Keep persisted or stale UI state from selecting multiple ownership models. */
+function normalizeAccessBaseSelection(
+  accessBases: Record<string, BaseDefinition>,
+  selectedAccessBases: string[]
+): string[] {
+  const selected = uniqueStrings(selectedAccessBases);
+
+  return selected.reduce<string[]>((result, key) => {
+    if (accessBases[key]?.accessType !== "ownership") {
+      result.push(key);
+      return result;
+    }
+
+    return [
+      ...result.filter((selectedKey) => accessBases[selectedKey]?.accessType !== "ownership"),
+      key,
+    ];
+  }, []);
 }
 
 function validateSingleOwnershipAccessBase(

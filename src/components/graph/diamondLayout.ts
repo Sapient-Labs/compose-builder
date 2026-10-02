@@ -13,7 +13,7 @@ export const DIAMOND_CENTER_ID = "draft-diamond:center";
 
 /** Palette aligned with the Compose docs landing diamond graph. */
 export const CATEGORY_COLORS = {
-  access: "#c4a574",
+  access: "#8b5cf6",
   diamond: "#2f7f91",
   interfaceDetection: "#6eb6c4",
   token: "#d4a574",

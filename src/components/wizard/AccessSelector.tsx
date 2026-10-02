@@ -21,10 +21,14 @@ export function AccessSelector() {
 
   const handleSelect = (key: string) => {
     const isSelected = config.selectedAccess.includes(key);
+    const ownershipKeys = ownershipBases.map(([ownershipKey]) => ownershipKey);
     setConfig({
       selectedAccess: isSelected
         ? config.selectedAccess.filter((a) => a !== key)
-        : [...config.selectedAccess, key],
+        : [
+            ...config.selectedAccess.filter((a) => !ownershipKeys.includes(a)),
+            key,
+          ],
       selectedAccessExtensions: [],
     });
   };

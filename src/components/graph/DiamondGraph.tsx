@@ -8,7 +8,6 @@ import { EdgesGeometry } from "three";
 import { useLaunchpadStore } from "@/lib/state/store";
 import { getAccessBases, resolveCatalogSelection } from "@/lib/compose-core";
 import { Badge } from "@/components/ui/badge";
-import { Gem } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrilliantDiamondGeometry } from "./brilliantDiamond";
 import {
@@ -198,7 +197,7 @@ function GraphScene({
   );
 
   return (
-    <div className="absolute inset-0 bg-[#f7f8fa] [&_canvas]:!absolute [&_canvas]:inset-0">
+    <div className="absolute inset-0 bg-[var(--graph-background)] [&_canvas]:!absolute [&_canvas]:inset-0">
       <Canvas
         flat
         frameloop="always"
@@ -286,10 +285,9 @@ function GraphScene({
 
 type DiamondGraphProps = {
   className?: string;
-  showHeader?: boolean;
 };
 
-export function DiamondGraph({ className, showHeader = true }: DiamondGraphProps) {
+export function DiamondGraph({ className }: DiamondGraphProps) {
   const { catalog, config } = useLaunchpadStore();
   const [selectedId, setSelectedId] = useState<string>();
 
@@ -379,37 +377,29 @@ export function DiamondGraph({ className, showHeader = true }: DiamondGraphProps
   return (
     <div
       className={cn(
-        "flex h-full w-full min-h-0 min-w-0 flex-col bg-[#f7f8fa] text-slate-900",
+        "flex h-full w-full min-h-0 min-w-0 flex-col bg-[var(--graph-background)] text-foreground",
         className,
       )}
     >
-      {showHeader && (
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Gem className="size-4 text-slate-700" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-slate-800">Diamond Graph</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedNode && (
-              <Badge
-                variant="outline"
-                className="border-slate-300 bg-white text-slate-800"
-              >
-                {selectedNode.name}
-              </Badge>
-            )}
-            <Badge
-              variant="secondary"
-              className="border-slate-200 bg-slate-100 text-slate-700"
-            >
-              {nodes.length} nodes
-            </Badge>
-          </div>
-        </div>
-      )}
       <div className="relative min-h-0 w-full flex-1 overflow-hidden">
+        <div className="pointer-events-none absolute right-4 top-4 z-30 flex items-center gap-2">
+          {selectedNode && (
+            <Badge
+              variant="outline"
+              className="border-border bg-card text-foreground shadow-sm"
+            >
+              {selectedNode.name}
+            </Badge>
+          )}
+          <Badge
+            variant="secondary"
+            className="border-border bg-secondary text-secondary-foreground shadow-sm"
+          >
+            {nodes.length} nodes
+          </Badge>
+        </div>
         {nodes.length === 0 ? (
-          <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-slate-500">
+          <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
             Select a base to preview the diamond composition graph.
           </div>
         ) : (
@@ -422,7 +412,7 @@ export function DiamondGraph({ className, showHeader = true }: DiamondGraphProps
           />
         )}
       </div>
-      <div className="border-t border-slate-200 bg-white/70 px-4 py-2 text-[11px] text-slate-600">
+      <div className="border-t border-border bg-[var(--graph-surface)] px-4 py-2 text-[11px] text-[var(--graph-muted)]">
         <span className="mr-3">
           <span
             className="mr-1 inline-block size-2 rounded-full align-middle"
