@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Line, OrbitControls } from "@react-three/drei";
@@ -17,6 +17,110 @@ import {
 } from "./diamondLayout";
 import type { DiamondFacetNode, DiamondPosition } from "./diamondLayout";
 import { useGraphPointerGesture } from "./graphInteraction";
+import { canRenderWebGL2 } from "./webglSupport";
+
+class GraphRenderBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode; onError: () => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function CompositionFallback({
+  nodes,
+  selectedId,
+  onSelect,
+  onClear,
+}: {
+  nodes: DiamondFacetNode[];
+  selectedId?: string;
+  onSelect: (node: DiamondFacetNode) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 overflow-y-auto p-5 pt-16 sm:p-8 sm:pt-16">
+      <div className="mx-auto flex max-w-2xl flex-col items-center">
+        <svg
+          viewBox="0 0 88 76"
+          className="mb-3 h-16 w-20 text-[#6eb6c4]"
+          aria-hidden="true"
+        >
+          <path
+            d="M20 7h48l16 22-40 40L4 29Z"
+            fill="currentColor"
+            fillOpacity="0.08"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M4 29h80M20 7l9 22 15 40 15-40 9-22M29 29 44 7l15 22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1"
+          />
+        </svg>
+        <h3 className="text-sm font-medium text-foreground">Project composition</h3>
+        <p role="status" className="mt-1 text-center text-xs text-muted-foreground">
+          3D preview unavailable. Your composition is shown below.
+        </p>
+        <ul
+          className="mt-5 grid w-full grid-cols-1 gap-2 sm:grid-cols-2"
+          aria-label="Selectable composition nodes"
+        >
+          {nodes.map((node) => (
+            <li key={node.id}>
+              <button
+                type="button"
+                aria-pressed={node.id === selectedId}
+                aria-label={`${node.name} ${node.group}`}
+                onClick={() => onSelect(node)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg border bg-card/70 p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  node.id === selectedId
+                    ? "border-primary bg-primary/10"
+                    : "border-border",
+                )}
+              >
+                <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ background: node.color }}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0">
+                  <span className="block break-words text-xs font-medium">{node.name}</span>
+                  <span className="mt-1 block text-[10px] capitalize text-muted-foreground">
+                    {node.group}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {selectedId && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="mt-4 rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Clear selection
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function CameraFrame({
   positions,
@@ -285,12 +389,23 @@ function GraphScene({
 
 type DiamondGraphProps = {
   className?: string;
+  /** Opt into a selectable DOM composition when WebGL cannot render. */
+  enableWebGLFallback?: boolean;
 };
 
-export function DiamondGraph({ className }: DiamondGraphProps) {
+export function DiamondGraph({
+  className,
+  enableWebGLFallback = false,
+}: DiamondGraphProps) {
   const { catalog, activeProject } = useLaunchpadStore();
   const config = activeProject?.config;
   const [selectedId, setSelectedId] = useState<string>();
+  const [rendererFailed, setRendererFailed] = useState(false);
+  const webglAvailable = useMemo(
+    () => !enableWebGLFallback || canRenderWebGL2(),
+    [enableWebGLFallback],
+  );
+  const showFallback = enableWebGLFallback && (!webglAvailable || rendererFailed);
 
   const nodes = useMemo<DiamondFacetNode[]>(() => {
     if (!catalog || !config) return [];
@@ -372,6 +487,24 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
     [config, nodes.length],
   );
 
+  const fallback = (
+    <CompositionFallback
+      nodes={nodes}
+      selectedId={selectedNode?.id}
+      onSelect={(node) => setSelectedId(node.id)}
+      onClear={() => setSelectedId(undefined)}
+    />
+  );
+  const scene = (
+    <GraphScene
+      nodes={nodes}
+      selectedId={selectedNode?.id}
+      onSelect={(node) => setSelectedId(node.id)}
+      onClear={() => setSelectedId(undefined)}
+      viewKey={viewKey}
+    />
+  );
+
   return (
     <div
       className={cn(
@@ -400,18 +533,18 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
           <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
             Select a starting point to preview the project composition graph.
           </div>
-        ) : (
-          <GraphScene
-            nodes={nodes}
-            selectedId={selectedNode?.id}
-            onSelect={(node) => setSelectedId(node.id)}
-            onClear={() => setSelectedId(undefined)}
-            viewKey={viewKey}
-          />
-        )}
+        ) : showFallback ? fallback : enableWebGLFallback ? (
+          <GraphRenderBoundary fallback={fallback} onError={() => setRendererFailed(true)}>
+            {scene}
+          </GraphRenderBoundary>
+        ) : scene}
       </div>
       <div className="border-t border-border bg-[var(--graph-surface)] px-4 py-2 text-[11px] text-[var(--graph-muted)]">
-        <span className="mr-3">Drag to rotate · scroll to zoom · click a node to select</span>
+        <span className="mr-3">
+          {showFallback
+            ? "Select a node to inspect your composition"
+            : "Drag to rotate · scroll to zoom · click a node to select"}
+        </span>
         <span className="mr-3">
           <span
             className="mr-1 inline-block size-2 rounded-full align-middle"
