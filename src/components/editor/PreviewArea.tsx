@@ -28,7 +28,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
-  Gem,
+  Network,
 } from "lucide-react"
 import { DiamondGraph } from "@/components/graph/DiamondGraph"
 
@@ -223,6 +223,13 @@ export function PreviewArea() {
     kind: "generated" as const,
   }
   const fileLabel = (path: string) => path.split("/").pop() ?? path
+  const compileStatus = compiling
+    ? "Compiling"
+    : currentCompileError
+      ? "Compiler unavailable"
+      : isValidated
+        ? "Compiled"
+        : "Needs review"
   const validationIcon = compiling ? (
     <Loader2
       className="size-4 animate-spin text-amber-600 motion-reduce:animate-none group-data-[state=active]:text-amber-300 dark:text-amber-400 dark:group-data-[state=active]:text-amber-600"
@@ -244,14 +251,19 @@ export function PreviewArea() {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="p-4 border-b flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Your application</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3 sm:p-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="text-md font-semibold">Your application</h1>
+          <span className="hidden text-sm text-muted-foreground sm:inline" aria-hidden="true">·</span>
           <p className="text-sm text-muted-foreground">
-            {allFacets.length} facets selected
+            {allFacets.length} {allFacets.length === 1 ? "facet" : "facets"} selected
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Badge variant={isValidated ? "secondary" : "outline"} className="gap-1.5" aria-live="polite">
+            {validationIcon}
+            {compileStatus}
+          </Badge>
           <Badge variant="secondary" className="animate-in fade-in">
             {config.baseKey === "none" ? "Blank" : selection.selectedBase.label}
           </Badge>
@@ -292,35 +304,38 @@ export function PreviewArea() {
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="code" className="h-full flex flex-col">
           <div className="border-b bg-muted/25 px-3 py-2">
-            <TabsList className="w-full">
-              <TabsTrigger value="code">
+            <TabsList className="grid h-auto w-full grid-cols-5">
+              <TabsTrigger value="code" aria-label="Project files" title="Project files">
                 <Code aria-hidden="true" />
-                Project
+                <span className="hidden sm:inline">Project</span>
               </TabsTrigger>
-              <TabsTrigger value="deploy">
-                <FileCode aria-hidden="true" />
-                Deploy Script
+              <TabsTrigger value="graph" aria-label="Graph" title="Graph">
+                <Network aria-hidden="true" />
+                <span className="hidden sm:inline">Graph</span>
               </TabsTrigger>
-              <TabsTrigger value="cli">
-                <Terminal aria-hidden="true" />
-                CLI Command
-              </TabsTrigger>
-              <TabsTrigger value="validation" className="group">
+              <TabsTrigger value="validation" className="group" aria-label="Validation" title="Validation">
                 {validationIcon}
-                Validation
+                <span className="hidden sm:inline">Validation</span>
               </TabsTrigger>
-              <TabsTrigger value="graph">
-                <Gem aria-hidden="true" />
-                Graph
+              <TabsTrigger value="deploy" aria-label="Deploy script" title="Deploy script">
+                <FileCode aria-hidden="true" />
+                <span className="hidden sm:inline">Deploy</span>
+              </TabsTrigger>
+              <TabsTrigger value="cli" aria-label="CLI setup" title="CLI setup">
+                <Terminal aria-hidden="true" />
+                <span className="hidden sm:inline">CLI setup</span>
               </TabsTrigger>
             </TabsList>
           </div>
 
           <TabsContent value="code" className="flex-1 overflow-auto m-0">
-            <div className="h-full flex min-h-0">
-              <aside className="w-64 shrink-0 border-r p-3 overflow-y-auto">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-                  Project files · {projectFiles.length || 1}
+            <div className="flex h-full min-h-0">
+              <aside className="w-64 max-md:w-44 shrink-0 overflow-y-auto border-r p-3" aria-label="Project files">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Files</div>
+                  <span className="text-xs tabular-nums text-muted-foreground" aria-label={`${projectFiles.length || 1} files`}>
+                    {projectFiles.length || 1}
+                  </span>
                 </div>
                 <div className="space-y-1">
                   {(projectFiles.length ? projectFiles : [currentFile]).map((file) => (
@@ -328,10 +343,11 @@ export function PreviewArea() {
                       key={file.path}
                       type="button"
                       title={file.path}
-                      className={`w-full text-left rounded px-2 py-2 text-xs transition-colors ${file.path === currentFile.path ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                      aria-current={file.path === currentFile.path ? "page" : undefined}
+                      className={`w-full rounded px-2 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${file.path === currentFile.path ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
                       onClick={() => setSelectedFile(file.path)}
                     >
-                      <span className="block truncate">{fileLabel(file.path)}</span>
+                      <span className="block truncate font-medium">{fileLabel(file.path)}</span>
                     </button>
                   ))}
                 </div>
@@ -347,7 +363,13 @@ export function PreviewArea() {
           </TabsContent>
 
           <TabsContent value="deploy" className="flex-1 overflow-auto m-0">
-            <div className="p-4 h-full">
+            <div className="h-full p-4">
+              <div className="mb-3 max-w-2xl">
+                <h2 className="font-semibold">Deployment script</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Generated for {config.framework === "foundry" ? "Foundry" : `Hardhat · ${config.toolbox ?? "ethers"}`}. Copy this into your deployment script directory.
+                </p>
+              </div>
               <CodeBlock
                 code={deployScript}
                 language={config.framework === "foundry" ? "solidity" : "typescript"}
@@ -357,7 +379,13 @@ export function PreviewArea() {
           </TabsContent>
 
           <TabsContent value="cli" className="flex-1 overflow-auto m-0">
-            <div className="p-4 h-full">
+            <div className="h-full p-4">
+              <div className="mb-3 max-w-2xl">
+                <h2 className="font-semibold">CLI setup command</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Run this command to recreate the selected project locally with Compose.
+                </p>
+              </div>
               <CodeBlock
                 code={cliCommand}
                 language="bash"
@@ -376,7 +404,7 @@ export function PreviewArea() {
                 <h3 className="font-semibold">
                   {compiling
                     ? "Compiling with pinned solc 0.8.30..."
-                    : compileError
+                      : currentCompileError
                       ? "Compiler unavailable"
                       : isValidated
                         ? "Diamond passed local validation"
@@ -405,16 +433,19 @@ export function PreviewArea() {
 
               {currentCompileResult && (
                 <>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3 text-sm max-md:grid-cols-1">
                     <div className="rounded-lg border p-3">
                       <strong>Creation bytecode</strong>
                       <p className="text-muted-foreground">
                         {currentCompileResult.validation.creationBytes ?? 0} bytes
                       </p>
                       {currentCompileResult.validation.creationHash && (
-                        <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
-                          {currentCompileResult.validation.creationHash}
-                        </p>
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs text-primary">Show hash</summary>
+                          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                            {currentCompileResult.validation.creationHash}
+                          </p>
+                        </details>
                       )}
                     </div>
                     <div className="rounded-lg border p-3">
@@ -423,17 +454,23 @@ export function PreviewArea() {
                         {currentCompileResult.validation.runtimeBytes ?? 0} bytes
                       </p>
                       {currentCompileResult.validation.runtimeHash && (
-                        <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
-                          {currentCompileResult.validation.runtimeHash}
-                        </p>
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs text-primary">Show hash</summary>
+                          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                            {currentCompileResult.validation.runtimeHash}
+                          </p>
+                        </details>
                       )}
                     </div>
                   </div>
 
                   {validationMessages.length > 0 && (
-                    <ul className="space-y-2 text-sm" role="list">
+                    <ul className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
                       {validationMessages.map((message) => (
-                        <li key={message} className="text-destructive">{message}</li>
+                        <li key={message} className="flex gap-2 text-destructive">
+                          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                          <span>{message}</span>
+                        </li>
                       ))}
                     </ul>
                   )}
@@ -451,7 +488,7 @@ export function PreviewArea() {
                       </p>
                     ) : (
                       <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm" aria-label="Exported function selectors">
                           <thead>
                             <tr className="border-b bg-muted/40 text-left">
                               <th className="px-3 py-2 font-medium">Selector</th>
@@ -485,7 +522,7 @@ export function PreviewArea() {
                       </p>
                     ) : (
                       <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm" aria-label="Storage slots">
                           <thead>
                             <tr className="border-b bg-muted/40 text-left">
                               <th className="px-3 py-2 font-medium">Label</th>
@@ -509,11 +546,11 @@ export function PreviewArea() {
                       {currentCompileResult.diagnostics.map((diagnostic, index) => (
                         <pre
                           key={`${diagnostic.severity}-${index}`}
-                          className={`whitespace-pre-wrap text-xs ${
+                          className={`whitespace-pre-wrap rounded-md border p-3 text-xs ${
                             diagnostic.severity === "error"
-                              ? "text-destructive"
+                              ? "border-destructive/30 bg-destructive/5 text-destructive"
                               : diagnostic.severity === "warning"
-                                ? "text-amber-600 dark:text-amber-400"
+                                ? "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400"
                                 : "text-muted-foreground"
                           }`}
                         >

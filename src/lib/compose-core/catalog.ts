@@ -1,4 +1,4 @@
-import type { BaseDefinition, BasesCatalog } from "@/types/catalog";
+import type { BaseDefinition } from "@/types/catalog";
 
 export const EMPTY_BASE: BaseDefinition = {
   label: "None",
@@ -21,18 +21,4 @@ export function sortBaseFeatures(
       return leftDef.label.localeCompare(rightDef.label);
     })
   );
-}
-
-export function getDiamondCompilerVersion(catalog: BasesCatalog): string {
-  const compilerVersion = catalog.globals.diamond?.compilerVersion;
-  if (
-    typeof compilerVersion !== "string" ||
-    !/^\d+\.\d+\.\d+$/.test(compilerVersion)
-  ) {
-    throw new Error(
-      "Diamond compilerVersion must be an exact semantic version such as 0.8.30."
-    );
-  }
-
-  return compilerVersion;
 }

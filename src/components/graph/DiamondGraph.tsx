@@ -413,6 +413,7 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
         )}
       </div>
       <div className="border-t border-border bg-[var(--graph-surface)] px-4 py-2 text-[11px] text-[var(--graph-muted)]">
+        <span className="mr-3">Drag to rotate · scroll to zoom · click a node to select</span>
         <span className="mr-3">
           <span
             className="mr-1 inline-block size-2 rounded-full align-middle"
@@ -435,6 +436,11 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
           Access
         </span>
       </div>
+      <ul className="sr-only" aria-label="Diamond composition nodes">
+        {nodes.map((node) => (
+          <li key={node.id}>{node.name} ({node.group})</li>
+        ))}
+      </ul>
     </div>
   );
 }

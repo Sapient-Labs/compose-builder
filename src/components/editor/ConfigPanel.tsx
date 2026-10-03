@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react"
 import { useLaunchpadStore } from "@/lib/state/store"
 import { getAccessBases, getAvailableLibraryFacets, EMPTY_BASE } from "@/lib/compose-core"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CollapsibleSection } from "@/components/ui/collapsible"
@@ -15,11 +14,13 @@ import {
   Shield,
   Settings,
   User,
-  Users
+  Users,
+  ArrowRight,
+  Check
 } from "lucide-react"
 
 export function ConfigPanel() {
-  const { catalog, config, setConfig } = useLaunchpadStore()
+  const { catalog, config, setConfig, setViewMode } = useLaunchpadStore()
   const [facetSearch, setFacetSearch] = useState("")
   const [librarySearch, setLibrarySearch] = useState("")
 
@@ -71,13 +72,14 @@ export function ConfigPanel() {
   if (!catalog) return null
 
   return (
-    <div className="h-full overflow-y-auto bg-background">
-      <div className="w-full">
+    <div className="relative h-full bg-background">
+      <div className="h-full overflow-y-auto pb-20">
+        <div className="w-full">
         <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Settings className="size-5" />
+          <h1 className="text-md font-semibold flex items-center gap-2">
+            <Settings className="size-5" aria-hidden="true" />
             Build your application
-          </h2>
+          </h1>
         </div>
 
         <div className="p-2 space-y-1">
@@ -167,8 +169,11 @@ export function ConfigPanel() {
                   <Tooltip key={name}>
                     <TooltipTrigger asChild>
                       <div
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        tabIndex={0}
                         className={cn(
-                          "flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-all",
+                          "flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           isSelected 
                             ? "border-primary bg-primary/5 shadow-sm" 
                             : "hover:bg-accent/50 hover:border-accent-foreground/20"
@@ -179,8 +184,18 @@ export function ConfigPanel() {
                             : [...config.selectedExtensions, name]
                           setConfig({ selectedExtensions: newExtensions })
                         }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            event.currentTarget.click()
+                          }
+                        }}
                       >
-                        <Checkbox checked={isSelected} className="mt-0.5" />
+                        <span aria-hidden="true" className="mt-0.5 pointer-events-none">
+                          <span className={cn("flex size-4 items-center justify-center rounded-[4px] border", isSelected && "border-primary bg-primary text-primary-foreground")}>
+                            {isSelected && <Check className="size-3.5" />}
+                          </span>
+                        </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{name}</span>
@@ -240,9 +255,12 @@ export function ConfigPanel() {
 
                 return (
                   <div
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    tabIndex={0}
                     key={name}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-all",
+                      "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       isSelected 
                         ? "border-primary bg-primary/5 shadow-sm" 
                         : "hover:bg-accent/50 hover:border-accent-foreground/20"
@@ -253,8 +271,18 @@ export function ConfigPanel() {
                         : [...config.selectedLibraries, name]
                       setConfig({ selectedLibraries: newLibraries })
                     }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        event.currentTarget.click()
+                      }
+                    }}
                   >
-                    <Checkbox checked={isSelected} />
+                    <span aria-hidden="true" className="pointer-events-none">
+                      <span className={cn("flex size-4 items-center justify-center rounded-[4px] border", isSelected && "border-primary bg-primary text-primary-foreground")}>
+                        {isSelected && <Check className="size-3.5" />}
+                      </span>
+                    </span>
                     <span className="text-sm font-medium">{name}</span>
                   </div>
                 )
@@ -358,6 +386,14 @@ export function ConfigPanel() {
           </CollapsibleSection>
         )}
 
+        </div>
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 border-t bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <Button className="w-full" onClick={() => setViewMode("project")}>
+            Review project
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Button>
         </div>
       </div>
     </div>

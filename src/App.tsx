@@ -50,12 +50,12 @@ function App() {
   }
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-dvh bg-background flex overflow-hidden">
       <EditorSidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-11 border-b flex-shrink-0">
-          <div className="h-full px-4 flex items-center justify-end">
+        <header className="h-11 border-b flex-shrink-0" aria-label="Application toolbar">
+          <div className="h-full px-3 sm:px-4 flex items-center justify-end">
             <div className="flex items-center gap-2 origin-right">
               <button
                 type="button"

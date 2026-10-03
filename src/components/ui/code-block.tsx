@@ -21,12 +21,19 @@ export function CodeBlock({
   showCopyButton = true 
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
   const { resolvedTheme } = useTheme()
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopyError(false)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopyError(true)
+      setTimeout(() => setCopyError(false), 3000)
+    }
   }
 
   return (
@@ -35,10 +42,13 @@ export function CodeBlock({
         <Button
           variant="ghost"
           size="sm"
-          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label={copyError ? "Copy failed" : copied ? "Copied" : "Copy code"}
+          className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           onClick={handleCopy}
         >
-          {copied ? (
+          {copyError ? (
+            <span className="text-xs text-destructive">Copy failed</span>
+          ) : copied ? (
             <>
               <Check className="size-4 mr-1 text-green-500" />
               <span className="text-xs text-green-500">Copied</span>
@@ -51,6 +61,9 @@ export function CodeBlock({
           )}
         </Button>
       )}
+      <span className="sr-only" role="status" aria-live="polite">
+        {copyError ? "Copy failed. Select the code manually." : copied ? "Code copied." : ""}
+      </span>
       <SyntaxHighlighter
         language={language}
          style={resolvedTheme === "dark" ? oneDark : oneLight}
