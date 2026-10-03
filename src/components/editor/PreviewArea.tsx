@@ -280,21 +280,21 @@ export function PreviewArea() {
         : "Needs review"
   const validationIcon = compiling ? (
     <Loader2
-      className="size-4 animate-spin text-amber-600 motion-reduce:animate-none group-data-[state=active]:text-amber-300 dark:text-amber-400 dark:group-data-[state=active]:text-amber-600"
+      className="mr-2 size-4 animate-spin text-amber-600 motion-reduce:animate-none group-data-[state=active]:text-amber-300 dark:text-amber-400 dark:group-data-[state=active]:text-amber-600"
       aria-hidden="true"
     />
   ) : currentCompileError || hasCompilerErrors || validationMessages.length > 0 ? (
     <AlertTriangle
-      className="size-4 text-destructive group-data-[state=active]:text-red-300 dark:group-data-[state=active]:text-red-700"
+      className="mr-2 size-4 text-destructive group-data-[state=active]:text-red-300 dark:group-data-[state=active]:text-red-700"
       aria-hidden="true"
     />
   ) : isValidated ? (
     <CheckCircle2
-      className="size-4 text-green-600 group-data-[state=active]:text-green-300 dark:text-green-400 dark:group-data-[state=active]:text-green-700"
+      className="mr-2 size-4 text-green-600 group-data-[state=active]:text-green-300 dark:text-green-400 dark:group-data-[state=active]:text-green-700"
       aria-hidden="true"
     />
   ) : (
-    <ShieldCheck className="size-4" aria-hidden="true" />
+    <ShieldCheck className="mr-2 size-4" aria-hidden="true" />
   )
 
   return (
@@ -358,11 +358,11 @@ export function PreviewArea() {
           <div className="border-b bg-muted/25 px-3 py-2">
             <TabsList className="grid h-auto w-full grid-cols-3">
               <TabsTrigger value="code" aria-label="Project files" title="Project files">
-                <Code aria-hidden="true" />
+                <Code aria-hidden="true" className="mr-2"/>
                 <span className="hidden sm:inline">Code</span>
               </TabsTrigger>
               <TabsTrigger value="graph" aria-label="Graph" title="Graph">
-                <Network aria-hidden="true" />
+                <Network aria-hidden="true" className="mr-2"/>
                 <span className="hidden sm:inline">Graph</span>
               </TabsTrigger>
               <TabsTrigger value="validation" className="group" aria-label="Validation" title="Validation">
