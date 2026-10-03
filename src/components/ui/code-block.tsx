@@ -43,7 +43,7 @@ export function CodeBlock({
           variant="ghost"
           size="sm"
           aria-label={copyError ? "Copy failed" : copied ? "Copied" : "Copy code"}
-          className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+          className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 hover:bg-muted group-hover:bg-muted"
           onClick={handleCopy}
         >
           {copyError ? (

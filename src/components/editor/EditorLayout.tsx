@@ -12,7 +12,7 @@ export function EditorLayout() {
     <div className="h-full flex overflow-hidden">
       {showConfig && (
         <div className="flex h-full min-w-0 flex-1 overflow-hidden">
-          <div className="flex h-full w-[min(28rem,42vw)] shrink-0 flex-col overflow-hidden border-r border-border">
+          <div className="flex h-full w-[min(22rem,36vw)] shrink-0 flex-col overflow-hidden border-r border-border">
             <ConfigPanel />
           </div>
           <div className="relative h-full min-w-0 flex-1 overflow-hidden">

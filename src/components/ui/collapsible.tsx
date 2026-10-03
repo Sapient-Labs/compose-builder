@@ -16,7 +16,7 @@ function CollapsibleTrigger({
     <CollapsiblePrimitive.CollapsibleTrigger
       data-slot="collapsible-trigger"
       className={cn(
-        "flex items-center justify-between w-full px-4 py-3 text-sm font-medium hover:bg-accent/50 transition-colors rounded-md",
+        "flex items-center justify-between w-full px-3 py-2 text-xs font-medium hover:bg-accent/50 transition-colors rounded-md",
         className
       )}
       {...props}
@@ -72,7 +72,7 @@ function CollapsibleSection({
           )} 
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="px-4 pb-4">
+      <CollapsibleContent className="px-3 pb-3">
         {children}
       </CollapsibleContent>
     </Collapsible>

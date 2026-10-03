@@ -105,14 +105,14 @@ export function ConfigPanel() {
     <div className="relative h-full bg-background">
       <div className="h-full overflow-y-auto pb-20">
         <div className="w-full">
-        <div className="p-4 border-b">
-          <h1 className="text-md font-semibold flex items-center gap-2">
-            <Settings className="size-5" aria-hidden="true" />
+        <div className="p-3 border-b">
+          <h1 className="text-sm font-semibold flex items-center gap-2">
+            <Settings className="size-4" aria-hidden="true" />
             Build your smart contract project
           </h1>
         </div>
 
-        <div className="p-2 space-y-1">
+        <div className="p-2 space-y-0.5">
         {/* Base Selection - Always Open */}
         <CollapsibleSection 
             title="Starting point"
@@ -132,7 +132,7 @@ export function ConfigPanel() {
             <Button
               variant={config.baseKey === "none" ? "default" : "outline"}
               size="sm"
-              className="w-full justify-start transition-all hover:scale-[1.02]"
+              className="w-full justify-start h-7 px-2.5 text-xs transition-all hover:scale-[1.02]"
               onClick={() => setConfig({
                 baseKey: "none",
                 selectedExtensions: [],
@@ -148,7 +148,7 @@ export function ConfigPanel() {
                   <Button
                     variant={config.baseKey === key ? "default" : "outline"}
                     size="sm"
-                    className="w-full justify-between transition-all hover:scale-[1.02]"
+                    className="w-full justify-between h-7 px-2.5 text-xs transition-all hover:scale-[1.02]"
                     onClick={() => setConfig({
                       baseKey: key,
                       selectedExtensions: [],
@@ -228,7 +228,7 @@ export function ConfigPanel() {
                         aria-checked={isSelected}
                         tabIndex={0}
                         className={cn(
-                          "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          "flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           isSelected 
                             ? "border-primary bg-primary/5 shadow-sm" 
                             : "hover:bg-accent/50 hover:border-accent-foreground/20"
@@ -252,7 +252,7 @@ export function ConfigPanel() {
                           </span>
                         </span>
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium">{entry.label ?? name}</span>
+                          <span className="text-xs font-medium">{entry.label ?? name}</span>
                         </div>
                       </div>
                     </TooltipTrigger>
@@ -264,7 +264,7 @@ export function ConfigPanel() {
                 )
               })}
               {filteredExtensions.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
+                <p className="text-xs text-muted-foreground text-center py-4">
                   No facets match "{facetSearch}"
                 </p>
               )}
@@ -305,7 +305,7 @@ export function ConfigPanel() {
                     tabIndex={0}
                     key={name}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       isSelected 
                         ? "border-primary bg-primary/5 shadow-sm" 
                         : "hover:bg-accent/50 hover:border-accent-foreground/20"
@@ -328,12 +328,12 @@ export function ConfigPanel() {
                         {isSelected && <Check className="size-3.5" />}
                       </span>
                     </span>
-                    <span className="text-sm font-medium">{entry.label ?? name}</span>
+                    <span className="text-xs font-medium">{entry.label ?? name}</span>
                   </div>
                 )
               })}
               {filteredLibraries.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
+                <p className="text-xs text-muted-foreground text-center py-4">
                   No libraries match "{librarySearch}"
                 </p>
               )}
@@ -372,7 +372,7 @@ export function ConfigPanel() {
                           key={key}
                           variant={isSelected ? "default" : "outline"}
                           size="sm"
-                          className="w-full justify-start transition-all hover:scale-[1.02]"
+                          className="w-full justify-start h-7 px-2.5 text-xs transition-all hover:scale-[1.02]"
                           onClick={() => {
                             const newAccess = isSelected
                               ? config.selectedAccess.filter((a) => a !== key)
@@ -416,7 +416,7 @@ export function ConfigPanel() {
                           key={key}
                           variant={isSelected ? "default" : "outline"}
                           size="sm"
-                          className="w-full justify-start transition-all hover:scale-[1.02]"
+                          className="w-full justify-start h-7 px-2.5 text-xs transition-all hover:scale-[1.02]"
                           onClick={() => {
                             const newAccess = isSelected
                               ? config.selectedAccess.filter((a) => a !== key)
@@ -457,7 +457,7 @@ export function ConfigPanel() {
                             aria-checked={isSelected}
                             tabIndex={0}
                             className={cn(
-                              "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              "flex items-start gap-2 rounded-md border p-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                               isSelected
                                 ? "border-primary bg-primary/5 shadow-sm"
                                 : "hover:bg-accent/50 hover:border-accent-foreground/20",
@@ -480,7 +480,7 @@ export function ConfigPanel() {
                                 {isSelected && <Check className="size-3.5" />}
                               </span>
                             </span>
-                            <span className="text-sm font-medium">{label}</span>
+                            <span className="text-xs font-medium">{label}</span>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -498,10 +498,10 @@ export function ConfigPanel() {
         </div>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 border-t bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <Button className="w-full" onClick={() => setViewMode("project")}>
+        <div className="absolute inset-x-0 bottom-0 border-t bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <Button size="sm" className="w-full h-8 text-xs" onClick={() => setViewMode("project")}>
             Generate project
-            <ArrowRight className="size-4" aria-hidden="true" />
+            <ArrowRight className="size-3.5" aria-hidden="true" />
           </Button>
         </div>
       </div>

@@ -52,5 +52,5 @@ export function buildCliCommand(
     );
   }
 
-  return parts.join(" \\\n  ");
+  return parts.join(" ");
 }

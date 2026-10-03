@@ -16,7 +16,7 @@ export function ContinueLocallyDialog() {
   }, [activeProject?.id, activeProject?.name]);
 
   const saveProjectName = () => {
-    const name = projectName.trim() || "Untitled project";
+    const name = projectName.trim() || "my-first-diamond";
     setProjectName(name);
     if (name !== activeProject?.name) updateProject({ name });
   };
@@ -35,10 +35,10 @@ export function ContinueLocallyDialog() {
           variant="default"
           size="sm"
           disabled={!config || !plan}
-          className="h-8 gap-1.5 px-3 shadow-sm"
+          className="h-8 gap-1.5 px-3 text-xs shadow-sm"
         >
           <Terminal className="size-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Continue locally</span>
+          <span className="hidden sm:inline">Export to your terminal</span>
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -47,7 +47,7 @@ export function ContinueLocallyDialog() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <Dialog.Title className="text-lg font-semibold">
-                Continue locally
+                Export your project
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-sm text-muted-foreground">
                 Scaffold this Compose project in any terminal.
@@ -62,7 +62,7 @@ export function ContinueLocallyDialog() {
 
           {plan && config && (
             <>
-              <div className="mt-5 grid grid-cols-3 gap-2 text-sm max-md:grid-cols-1">
+              <div className="mt-5 space-y-2 text-sm">
                 <div className="min-w-0 rounded-md border bg-muted/20 px-3 py-2">
                   <label
                     htmlFor="continue-locally-project-name"
@@ -86,14 +86,10 @@ export function ContinueLocallyDialog() {
                     aria-describedby="project-name-hint"
                   />
                 </div>
-                <SummaryItem
-                  label="Base"
-                  value={config.baseKey === "none" ? "Blank project" : plan.base.label}
-                />
-                <SummaryItem
-                  label="Framework"
-                  value={config.framework === "foundry" ? "Foundry" : `Hardhat · ${config.toolbox ?? "ethers"}`}
-                />
+                <p className="text-xs text-muted-foreground">
+                  {config.baseKey === "none" ? "Blank project" : plan.base.label} ·{" "}
+                  {config.framework === "foundry" ? "Foundry" : `Hardhat · ${config.toolbox ?? "ethers"}`}
+                </p>
               </div>
 
               <div className="mt-5">
@@ -102,11 +98,7 @@ export function ContinueLocallyDialog() {
               </div>
 
               <p className="mt-3 text-xs text-muted-foreground">
-                Compose will create the project structure, copy the selected facets,
-                generate the Diamond contract, deployment script, tests, and `compose.json`.
-              </p>
-              <p id="project-name-hint" className="mt-2 text-xs text-muted-foreground">
-                Give this project a name so it is easy to find in your workspace.
+                Creates your project structure, Diamond contract, deployment script, tests, and configuration. 
               </p>
             </>
           )}
@@ -122,11 +114,4 @@ export function ContinueLocallyDialog() {
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-md border bg-muted/20 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate font-medium" title={value}>{value}</p>
-    </div>
-  );
-}
+

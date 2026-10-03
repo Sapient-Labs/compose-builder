@@ -301,7 +301,7 @@ export function PreviewArea() {
     <div className="h-full flex flex-col bg-background">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3 sm:p-4">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-md font-semibold">Your generated project</h1>
+          <h1 className="text-md font-semibold">Your Project</h1>
           <span className="hidden text-sm text-muted-foreground sm:inline" aria-hidden="true">·</span>
           <p className="text-sm text-muted-foreground">
             {allFacets.length} {allFacets.length === 1 ? "facet" : "facets"} selected
@@ -359,7 +359,7 @@ export function PreviewArea() {
             <TabsList className="grid h-auto w-full grid-cols-3">
               <TabsTrigger value="code" aria-label="Project files" title="Project files">
                 <Code aria-hidden="true" />
-                <span className="hidden sm:inline">Generated code</span>
+                <span className="hidden sm:inline">Code</span>
               </TabsTrigger>
               <TabsTrigger value="graph" aria-label="Graph" title="Graph">
                 <Network aria-hidden="true" />
@@ -367,7 +367,7 @@ export function PreviewArea() {
               </TabsTrigger>
               <TabsTrigger value="validation" className="group" aria-label="Validation" title="Validation">
                 {validationIcon}
-                <span className="hidden sm:inline">Validation</span>
+                <span className="hidden sm:inline">Inspect</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -384,17 +384,17 @@ export function PreviewArea() {
                   <div className="space-y-4">
                     {Object.entries(groupedFiles).map(([folder, files]) => (
                       <div key={folder}>
-                        <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                        <div className="mb-0.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                           {folder}
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           {files.map((file) => (
                             <button
                               key={file.path}
                               type="button"
                               title={file.path}
                               aria-current={file.path === currentFile.path ? "page" : undefined}
-                              className={`w-full rounded px-2 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${file.path === currentFile.path ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                              className={`w-full rounded px-2 py-1 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${file.path === currentFile.path ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
                               onClick={() => setSelectedFile(file.path)}
                             >
                               <span className="block truncate font-medium">{file.path.split("/").pop()}</span>
