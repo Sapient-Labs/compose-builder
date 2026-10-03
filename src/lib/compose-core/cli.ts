@@ -18,7 +18,7 @@ export function buildCliCommand(
     "npx",
     "@perfect-abstractions/compose-cli",
     "init",
-    `--name ${toProjectDirectoryName(projectName)}`,
+    toProjectDirectoryName(projectName),
     "--yes",
   ];
 
