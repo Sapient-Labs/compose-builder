@@ -107,7 +107,6 @@ export function ConfigPanel() {
         <div className="w-full">
         <div className="p-3 border-b">
           <h1 className="text-sm font-semibold flex items-center gap-2">
-            <Settings className="size-4" aria-hidden="true" />
             Build your smart contract project
           </h1>
         </div>
