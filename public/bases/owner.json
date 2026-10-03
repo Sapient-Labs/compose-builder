@@ -27,6 +27,7 @@
     },
     "optional": {
       "OwnerRenounceFacet": {
+        "label": "Renounce",
         "path": "@perfect-abstractions/compose/access/Owner/Renounce/OwnerRenounceFacet.sol",
         "mod": "@perfect-abstractions/compose/access/Owner/Renounce/OwnerRenounceMod.sol"
       }
@@ -59,6 +60,7 @@
     },
     "optional": {
       "OwnerTwoStepRenounceFacet": {
+        "label": "Two-Step Renounce",
         "path": "@perfect-abstractions/compose/access/Owner/TwoSteps/Renounce/OwnerTwoStepRenounceFacet.sol",
         "mod": "@perfect-abstractions/compose/access/Owner/TwoSteps/Renounce/OwnerTwoStepRenounceMod.sol"
       }

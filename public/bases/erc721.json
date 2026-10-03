@@ -1,6 +1,7 @@
 {
   "erc-721": {
-    "label": "ERC-721",
+    "label": "NFT",
+    "standard": "ERC-721",
     "order": 3,
     "erc165": {
       "path": "@perfect-abstractions/compose/interfaces/IERC721.sol",
@@ -20,9 +21,11 @@
     },
     "optional": {
       "ERC721BurnFacet": {
+        "label": "Burn",
         "path": "@perfect-abstractions/compose/token/ERC721/Burn/ERC721BurnFacet.sol"
       },
       "ERC721MetadataFacet": {
+        "label": "Metadata",
         "path": "@perfect-abstractions/compose/token/ERC721/Metadata/ERC721MetadataFacet.sol",
         "mod": "@perfect-abstractions/compose/token/ERC721/Metadata/ERC721MetadataMod.sol",
         "constructor": [
@@ -38,6 +41,7 @@
         }
       },
       "RoyaltyFacet": {
+        "label": "Royalty",
         "path": "@perfect-abstractions/compose/token/Royalty/RoyaltyFacet.sol",
         "mod": "@perfect-abstractions/compose/token/Royalty/RoyaltyMod.sol",
         "constructor": [
@@ -55,7 +59,8 @@
     }
   },
   "erc-721-enumerable": {
-    "label": "ERC-721 Enumerable",
+    "label": "Enumerable NFT",
+    "standard": "ERC-721",
     "order": 4,
     "erc165": {
       "path": "@perfect-abstractions/compose/interfaces/IERC721.sol",
@@ -78,9 +83,11 @@
     },
     "optional": {
       "ERC721EnumerableBurnFacet": {
+        "label": "Enumerable Burn",
         "path": "@perfect-abstractions/compose/token/ERC721/Enumerable/Burn/ERC721EnumerableBurnFacet.sol"
       },
       "ERC721MetadataFacet": {
+        "label": "Metadata",
         "path": "@perfect-abstractions/compose/token/ERC721/Metadata/ERC721MetadataFacet.sol",
         "mod": "@perfect-abstractions/compose/token/ERC721/Metadata/ERC721MetadataMod.sol",
         "constructor": [
@@ -96,6 +103,7 @@
         }
       },
       "RoyaltyFacet": {
+        "label": "Royalty",
         "path": "@perfect-abstractions/compose/token/Royalty/RoyaltyFacet.sol",
         "mod": "@perfect-abstractions/compose/token/Royalty/RoyaltyMod.sol",
         "constructor": [

@@ -1,6 +1,7 @@
 {
   "erc-1155": {
-    "label": "ERC-1155",
+    "label": "Multi-Token",
+    "standard": "ERC-1155",
     "order": 5,
     "erc165": {
       "path": "@perfect-abstractions/compose/interfaces/IERC1155.sol",
@@ -24,10 +25,12 @@
     },
     "optional": {
       "ERC1155BurnFacet": {
+        "label": "Burn",
         "path": "@perfect-abstractions/compose/token/ERC1155/Burn/ERC1155BurnFacet.sol",
         "mod": "@perfect-abstractions/compose/token/ERC1155/Burn/ERC1155BurnMod.sol"
       },
       "ERC1155MetadataFacet": {
+        "label": "Metadata",
         "path": "@perfect-abstractions/compose/token/ERC1155/Metadata/ERC1155MetadataFacet.sol",
         "mod": "@perfect-abstractions/compose/token/ERC1155/Metadata/ERC1155MetadataMod.sol",
         "constructor": [
@@ -47,6 +50,7 @@
         }
       },
       "RoyaltyFacet": {
+        "label": "Royalty",
         "path": "@perfect-abstractions/compose/token/Royalty/RoyaltyFacet.sol",
         "mod": "@perfect-abstractions/compose/token/Royalty/RoyaltyMod.sol",
         "constructor": [

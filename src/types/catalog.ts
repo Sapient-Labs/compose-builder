@@ -10,6 +10,7 @@ export type ConstructorEntry = {
 };
 
 export type FacetEntry = {
+  label?: string;
   path: string;
   mod?: string;
   constructor?: ConstructorEntry[];
@@ -18,6 +19,7 @@ export type FacetEntry = {
 
 export type BaseDefinition = {
   label: string;
+  standard?: string;
   order?: number;
   visible?: boolean;
   access?: boolean;

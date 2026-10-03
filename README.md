@@ -1,22 +1,22 @@
-# Compose Launchpad
+# Compose Project Builder
 
-Interactive diamond builder for EIP-2535 diamonds powered by Compose.
+Interactive smart contract project builder powered by Compose.
 
 ## Features
 
-- **6-Step Wizard**: Configure your diamond through an intuitive interface
-  - Base selection (ERC-20, ERC-721, Counter, etc.)
+- **Project Builder**: Configure your smart contract project through an intuitive interface
+  - Starting point selection (ERC-20, ERC-721, Counter, etc.)
   - Optional facet selection
-  - Library facets (ERC-165, etc.)
-  - Access control (Ownership, Roles)
+  - Libraries and dependencies (ERC-165, etc.)
+  - Permissions (Ownership, Roles)
   - Framework selection (Foundry/Hardhat)
   - Live preview with code generation
 
-- **Live Preview**: See generated `Diamond.sol` code as you configure
-- **CLI Command Generator**: Copy the exact `compose init` command for your configuration
+- **Live Preview**: See generated Solidity code as you configure
+- **CLI Command Generator**: Copy the exact `npx @perfect-abstractions/compose init` command for your configuration
 - **Wallet Integration**: Connect wallet via RainbowKit (Sepolia testnet)
 - **Persistent State**: Configuration saved to localStorage
-- **Local Validation**: The generated Diamond is compiled in a disposable browser
+- **Local Validation**: Generated Solidity is compiled in a disposable browser
   worker with pinned solc 0.8.30 and the published Compose source package
 
 ## Getting Started
@@ -62,7 +62,7 @@ npm run build
 
 The browser compiler assets are prepared from the locked `solc@0.8.30` and
 `@perfect-abstractions/compose@0.0.6` dependencies. Run `npm run compiler:check`
-to compile the generated Diamond wrapper locally without deploying anything.
+to compile generated Solidity locally without deploying anything.
 
 ### Preview Production Build
 
@@ -97,7 +97,7 @@ src/
 ## Phase 2 (Planned)
 
 - [x] In-browser Solidity compilation (solc-wasm)
-- [ ] 3D diamond preview with Three.js
+- [ ] Interactive project composition preview with Three.js
 - [ ] Direct deployment to Sepolia
 - [ ] Facet deployment flow
 

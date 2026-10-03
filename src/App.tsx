@@ -4,8 +4,8 @@ import { useLaunchpadStore } from "@/lib/state/store";
 import { loadBasesCatalog } from "@/lib/compose-core";
 import { EditorLayout } from "@/components/editor/EditorLayout";
 import { EditorSidebar } from "@/components/editor/EditorSidebar";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Diamond, Moon, Sun } from "lucide-react";
+import { ContinueLocallyDialog } from "@/components/editor/ContinueLocallyDialog";
+import { BookOpen, Diamond, Moon, Sun } from "lucide-react";
 
 function App() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -57,6 +57,15 @@ function App() {
         <header className="h-11 border-b flex-shrink-0" aria-label="Application toolbar">
           <div className="h-full px-3 sm:px-4 flex items-center justify-end">
             <div className="flex items-center gap-2 origin-right">
+              <a
+                href="https://compose.diamonds/docs"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Documentation"
+              >
+                <BookOpen className="size-4" />
+              </a>
               <button
                 type="button"
                 className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -65,13 +74,7 @@ function App() {
               >
                 {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
-              <div className="[&_button]:!h-8 [&_button]:!text-sm [&_button]:!rounded-md [&_button]:!px-3">
-              <ConnectButton
-                showBalance={false}
-                chainStatus="icon"
-                accountStatus="address"
-              />
-              </div>
+              <ContinueLocallyDialog />
             </div>
           </div>
         </header>

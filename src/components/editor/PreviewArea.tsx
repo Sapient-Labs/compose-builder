@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { useLaunchpadStore } from "@/lib/state/store"
 import { resolveCatalogSelection, uniqueStrings } from "@/lib/compose-core"
+import { planComposition } from "@/lib/compose-core"
+import type { CompositionPlan } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
 import type {
   CompileFacetInput,
@@ -9,7 +11,7 @@ import type {
   StorageEntry,
 } from "@/lib/compose-core/compiler"
 import type { Framework, HardhatToolbox } from "@/types/config"
-import type { CatalogSelection } from "@/types/catalog"
+import type { BasesCatalog, CatalogSelection } from "@/types/catalog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { CodeBlock } from "@/components/ui/code-block"
@@ -22,8 +24,6 @@ import {
 } from "@/components/ui/select"
 import {
   Code,
-  Terminal,
-  FileCode,
   ShieldCheck,
   Loader2,
   CheckCircle2,
@@ -35,14 +35,23 @@ import { DiamondGraph } from "@/components/graph/DiamondGraph"
 type ProjectFile = {
   path: string
   source: string
-  kind: "generated" | "facet" | "module"
+  kind: "generated" | "facet" | "module" | "script"
+  language: "solidity" | "typescript"
 }
 
-function selectedFacetNames(selection: CatalogSelection, config: { selectedExtensions: string[]; selectedLibraries: string[] }) {
+function selectedFacetNames(
+  selection: CatalogSelection,
+  config: {
+    selectedExtensions: string[]
+    selectedLibraries: string[]
+    selectedAccessExtensions?: string[]
+  },
+) {
   return uniqueStrings([
     ...Object.keys(selection.requiredFacets),
     ...config.selectedExtensions,
     ...config.selectedLibraries,
+    ...(config.selectedAccessExtensions ?? []),
   ])
 }
 
@@ -95,16 +104,17 @@ async function loadFacetCompileInputs(
 }
 
 export function PreviewArea() {
-  const { catalog, config, setConfig } = useLaunchpadStore()
+  const { catalog, activeProject, setConfig } = useLaunchpadStore()
+  const config = activeProject?.config
   const [compileResult, setCompileResult] = useState<DiamondCompileResult>()
   const [compileError, setCompileError] = useState<string>()
   const [compiledSource, setCompiledSource] = useState("")
   const [failedSource, setFailedSource] = useState("")
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([])
-  const [selectedFile, setSelectedFile] = useState("contracts/Diamond.sol")
+  const [selectedFile, setSelectedFile] = useState("src/Diamond.sol")
 
   const selection = useMemo(() => {
-    if (!catalog) return null
+    if (!catalog || !config) return null
     return resolveCatalogSelection(
       catalog,
       config.baseKey,
@@ -115,27 +125,48 @@ export function PreviewArea() {
     )
   }, [catalog, config])
 
+  const plan = useMemo(
+    () => (catalog && config ? planComposition(catalog, config) : null),
+    [catalog, config],
+  )
+
   const diamondCode = useMemo(() => {
-    if (!catalog || !selection) return ""
-    return generateDiamondCode(selection, config, catalog)
-  }, [catalog, selection, config])
+    if (!catalog || !plan || !config) return ""
+    return generateDiamondCode(plan, catalog)
+  }, [catalog, plan, config])
 
   const facetNames = useMemo(
-    () => (selection ? selectedFacetNames(selection, config) : []),
+    () => (plan ? plan.facets.map((facet) => facet.name) : []),
+    [plan],
+  )
+
+  const deployScript = useMemo(
+    () => (selection && config ? generateDeployScript(selection, config) : ""),
     [selection, config],
   )
 
   useEffect(() => {
-    if (!catalog || !selection) return
-    const entries = facetNames.flatMap((facet) => {
-      const entry = resolveFacetEntry(selection, facet)
-      return entry ? [entry] : []
+    if (!catalog || !selection || !plan || !config) return
+    const entries = facetNames.flatMap((name) => {
+      const entry = resolveFacetEntry(selection, name)
+      return entry ? [{ name, entry }] : []
     })
     const add = (files: ProjectFile[], file: ProjectFile) => {
       if (!files.some((item) => item.path === file.path)) files.push(file)
     }
     const nextFiles: ProjectFile[] = [
-      { path: "contracts/Diamond.sol", source: diamondCode, kind: "generated" },
+      {
+        path: "src/Diamond.sol",
+        source: diamondCode,
+        kind: "generated",
+        language: "solidity",
+      },
+      {
+        path: config.framework === "foundry" ? "script/Deploy.s.sol" : "scripts/deploy.ts",
+        source: deployScript,
+        kind: "script",
+        language: config.framework === "foundry" ? "solidity" : "typescript",
+      },
     ]
     fetch(`${import.meta.env.BASE_URL}compiler/compose-sources.json`)
       .then((response) => {
@@ -143,10 +174,8 @@ export function PreviewArea() {
         return response.json() as Promise<{ sources: Record<string, string> }>
       })
       .then(async (manifest) => {
-        for (const entry of entries) {
-          const displayPath = entry.path.startsWith("./")
-            ? entry.path.slice(2)
-            : entry.path
+        for (const { name, entry } of entries) {
+          const displayPath = `src/facets/${name}.sol`
           if (entry.path.startsWith("./src/templates/")) {
             const response = await fetch(templateUrl(entry.path))
             if (response.ok)
@@ -154,26 +183,32 @@ export function PreviewArea() {
                 path: displayPath,
                 source: await response.text(),
                 kind: "facet",
+                language: "solidity",
               })
           } else if (manifest.sources[entry.path]) {
-            add(nextFiles, { path: displayPath, source: manifest.sources[entry.path], kind: "facet" })
+            add(nextFiles, {
+              path: displayPath,
+              source: manifest.sources[entry.path],
+              kind: "facet",
+              language: "solidity",
+            })
           }
         }
         setProjectFiles(nextFiles)
         setSelectedFile((current) =>
           nextFiles.some((file) => file.path === current)
             ? current
-            : "contracts/Diamond.sol",
+            : "src/Diamond.sol",
         )
       })
       .catch(() => {
         setProjectFiles(nextFiles)
-        setSelectedFile("contracts/Diamond.sol")
+        setSelectedFile("src/Diamond.sol")
       })
-  }, [catalog, selection, facetNames, diamondCode])
+  }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript])
 
   useEffect(() => {
-    if (!catalog || !selection || !diamondCode) return
+    if (!catalog || !selection || !plan || !config || !diamondCode) return
     const controller = new AbortController()
     let cancelled = false
 
@@ -196,13 +231,11 @@ export function PreviewArea() {
       cancelled = true
       controller.abort()
     }
-  }, [catalog, selection, diamondCode, config])
+  }, [catalog, selection, plan, diamondCode, config])
 
-  if (!catalog || !selection) return null
+  if (!catalog || !selection || !plan || !config) return null
 
   const allFacets = facetNames
-  const cliCommand = buildCliCommand(config)
-  const deployScript = generateDeployScript(selection, config)
   const currentCompileResult = compiledSource === diamondCode ? compileResult : undefined
   const currentCompileError = failedSource === diamondCode ? compileError : undefined
   const compiling = !!catalog && !currentCompileResult && !currentCompileError
@@ -217,12 +250,27 @@ export function PreviewArea() {
     !!currentCompileResult &&
     !hasCompilerErrors &&
     currentCompileResult.validation.ok
-  const currentFile = projectFiles.find((file) => file.path === selectedFile) ?? {
-    path: "contracts/Diamond.sol",
+  const deployFile: ProjectFile = {
+    path: config.framework === "foundry" ? "script/Deploy.s.sol" : "scripts/deploy.ts",
+    source: deployScript,
+    kind: "script",
+    language: config.framework === "foundry" ? "solidity" : "typescript",
+  }
+  const displayFiles = projectFiles.some((file) => file.path === deployFile.path)
+    ? projectFiles
+    : [...projectFiles, deployFile]
+  const currentFile = displayFiles.find((file) => file.path === selectedFile) ?? {
+    path: "src/Diamond.sol",
     source: diamondCode,
     kind: "generated" as const,
+    language: "solidity" as const,
   }
-  const fileLabel = (path: string) => path.split("/").pop() ?? path
+  const groupedFiles = displayFiles.reduce<Record<string, ProjectFile[]>>((groups, file) => {
+    const separator = file.path.lastIndexOf("/")
+    const folder = separator === -1 ? "Project root" : file.path.slice(0, separator)
+    ;(groups[folder] ??= []).push(file)
+    return groups
+  }, {})
   const compileStatus = compiling
     ? "Compiling"
     : currentCompileError
@@ -253,7 +301,7 @@ export function PreviewArea() {
     <div className="h-full flex flex-col bg-background">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3 sm:p-4">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-md font-semibold">Your application</h1>
+          <h1 className="text-md font-semibold">Your generated project</h1>
           <span className="hidden text-sm text-muted-foreground sm:inline" aria-hidden="true">·</span>
           <p className="text-sm text-muted-foreground">
             {allFacets.length} {allFacets.length === 1 ? "facet" : "facets"} selected
@@ -265,7 +313,11 @@ export function PreviewArea() {
             {compileStatus}
           </Badge>
           <Badge variant="secondary" className="animate-in fade-in">
-            {config.baseKey === "none" ? "Blank" : selection.selectedBase.label}
+            {config.baseKey === "none"
+              ? "Blank project"
+              : selection.selectedBase.standard
+                ? `${selection.selectedBase.label} · ${selection.selectedBase.standard}`
+                : selection.selectedBase.label}
           </Badge>
           <Select
             value={
@@ -304,10 +356,10 @@ export function PreviewArea() {
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="code" className="h-full flex flex-col">
           <div className="border-b bg-muted/25 px-3 py-2">
-            <TabsList className="grid h-auto w-full grid-cols-5">
+            <TabsList className="grid h-auto w-full grid-cols-3">
               <TabsTrigger value="code" aria-label="Project files" title="Project files">
                 <Code aria-hidden="true" />
-                <span className="hidden sm:inline">Project</span>
+                <span className="hidden sm:inline">Generated code</span>
               </TabsTrigger>
               <TabsTrigger value="graph" aria-label="Graph" title="Graph">
                 <Network aria-hidden="true" />
@@ -317,14 +369,6 @@ export function PreviewArea() {
                 {validationIcon}
                 <span className="hidden sm:inline">Validation</span>
               </TabsTrigger>
-              <TabsTrigger value="deploy" aria-label="Deploy script" title="Deploy script">
-                <FileCode aria-hidden="true" />
-                <span className="hidden sm:inline">Deploy</span>
-              </TabsTrigger>
-              <TabsTrigger value="cli" aria-label="CLI setup" title="CLI setup">
-                <Terminal aria-hidden="true" />
-                <span className="hidden sm:inline">CLI setup</span>
-              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -333,64 +377,41 @@ export function PreviewArea() {
               <aside className="w-64 max-md:w-44 shrink-0 overflow-y-auto border-r p-3" aria-label="Project files">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="text-xs uppercase tracking-wider text-muted-foreground">Files</div>
-                  <span className="text-xs tabular-nums text-muted-foreground" aria-label={`${projectFiles.length || 1} files`}>
-                    {projectFiles.length || 1}
+                  <span className="text-xs tabular-nums text-muted-foreground" aria-label={`${displayFiles.length || 1} files`}>
+                    {displayFiles.length || 1}
                   </span>
                 </div>
-                <div className="space-y-1">
-                  {(projectFiles.length ? projectFiles : [currentFile]).map((file) => (
-                    <button
-                      key={file.path}
-                      type="button"
-                      title={file.path}
-                      aria-current={file.path === currentFile.path ? "page" : undefined}
-                      className={`w-full rounded px-2 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${file.path === currentFile.path ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
-                      onClick={() => setSelectedFile(file.path)}
-                    >
-                      <span className="block truncate font-medium">{fileLabel(file.path)}</span>
-                    </button>
-                  ))}
-                </div>
+                  <div className="space-y-4">
+                    {Object.entries(groupedFiles).map(([folder, files]) => (
+                      <div key={folder}>
+                        <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                          {folder}
+                        </div>
+                        <div className="space-y-1">
+                          {files.map((file) => (
+                            <button
+                              key={file.path}
+                              type="button"
+                              title={file.path}
+                              aria-current={file.path === currentFile.path ? "page" : undefined}
+                              className={`w-full rounded px-2 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${file.path === currentFile.path ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                              onClick={() => setSelectedFile(file.path)}
+                            >
+                              <span className="block truncate font-medium">{file.path.split("/").pop()}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
               </aside>
               <div className="min-w-0 flex-1 p-4 h-full overflow-auto">
                 <CodeBlock
                   code={currentFile.source}
-                  language="solidity"
+                  language={currentFile.language}
                   className="h-full"
                 />
               </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="deploy" className="flex-1 overflow-auto m-0">
-            <div className="h-full p-4">
-              <div className="mb-3 max-w-2xl">
-                <h2 className="font-semibold">Deployment script</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Generated for {config.framework === "foundry" ? "Foundry" : `Hardhat · ${config.toolbox ?? "ethers"}`}. Copy this into your deployment script directory.
-                </p>
-              </div>
-              <CodeBlock
-                code={deployScript}
-                language={config.framework === "foundry" ? "solidity" : "typescript"}
-                className="h-full"
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="cli" className="flex-1 overflow-auto m-0">
-            <div className="h-full p-4">
-              <div className="mb-3 max-w-2xl">
-                <h2 className="font-semibold">CLI setup command</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Run this command to recreate the selected project locally with Compose.
-                </p>
-              </div>
-              <CodeBlock
-                code={cliCommand}
-                language="bash"
-                className="h-full"
-              />
             </div>
           </TabsContent>
 
@@ -407,16 +428,16 @@ export function PreviewArea() {
                       : currentCompileError
                       ? "Compiler unavailable"
                       : isValidated
-                        ? "Diamond passed local validation"
-                        : "Diamond needs review"}
+                        ? "Project passed local checks"
+                        : "Project needs review"}
                 </h3>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Local compiler and adapter check · not a security audit or
+                  Local compiler and integration checks · not a security audit or
                   deployment approval.
                 </p>
                 {currentCompileResult && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    {allFacets.length} facet(s) · {selectors.length} selector(s) ·{" "}
+                    {allFacets.length} facet(s) · {selectors.length} function selector(s) ·{" "}
                     {storage.length} storage slot(s)
                     {collisionCount > 0 && (
                       <span className="text-destructive"> · {collisionCount} collision(s)</span>
@@ -606,79 +627,15 @@ function StorageRow({ entry }: { entry: StorageEntry }) {
   )
 }
 
-function buildCliCommand(
-  config: { baseKey: string; framework: string; toolbox?: string; selectedLibraries: string[]; selectedExtensions: string[]; selectedAccess: string[]; selectedAccessExtensions: string[] }
-): string {
-  const parts = ["compose", "init", "--yes"]
-
-  parts.push(`--base ${config.baseKey}`)
-  parts.push(`--framework ${config.framework}`)
-
-  if (config.framework === "hardhat" && config.toolbox) {
-    parts.push(`--toolbox ${config.toolbox}`)
-  }
-
-  if (config.selectedLibraries.length > 0) {
-    parts.push(`--libraries ${config.selectedLibraries.join(",")}`)
-  }
-
-  if (config.selectedExtensions.length > 0) {
-    parts.push(`--extensions ${config.selectedExtensions.join(",")}`)
-  }
-
-  const ownership = config.selectedAccess.filter((a) =>
-    ["owner", "ownable"].includes(a)
-  )
-  const roleAccess = config.selectedAccess.filter(
-    (a) => !["owner", "ownable"].includes(a)
-  )
-
-  if (ownership.length > 0) {
-    parts.push(`--ownership ${ownership[0]}`)
-  }
-
-  if (roleAccess.length > 0) {
-    parts.push(`--access-control ${roleAccess.join(",")}`)
-  }
-
-  if (config.selectedAccessExtensions.length > 0) {
-    parts.push(`--access-control-extensions ${config.selectedAccessExtensions.join(",")}`)
-  }
-
-  return parts.join(" \\\n  ")
-}
-
 function generateDiamondCode(
-  selection: ReturnType<typeof resolveCatalogSelection>,
-  config: { framework: string; selectedExtensions: string[]; selectedLibraries: string[] },
-  catalog: any
+  plan: CompositionPlan,
+  catalog: BasesCatalog,
 ): string {
   const pragma = catalog.globals.diamond?.pragma || ">=0.8.30"
-  const facets = selectedFacetNames(selection, config)
-  const entries = facets.map((facet) => resolveFacetEntry(selection, facet)).filter(Boolean)
-  const constructorEntries = [
-    ...new Map(
-      entries
-        .flatMap((entry) => (Array.isArray(entry.constructor) ? entry.constructor : []))
-        .map((entry) => [entry.code, entry]),
-    ).values(),
-  ]
-  const initializerModules = [
-    ...new Set(
-      entries
-        .filter((entry) => (Array.isArray(entry.constructor) && entry.constructor.length > 0) && entry.mod)
-        .map((entry) => entry.mod!),
-    ),
-  ]
-  const interfaces = [
-    ...(selection.selectedBase.erc165 ? [selection.selectedBase.erc165] : []),
-    ...selection.selectedAccessBases.flatMap((base) =>
-      base.erc165 ? [base.erc165] : [],
-    ),
-    ...entries.flatMap((entry) => entry.erc165 ? [entry.erc165] : []),
-  ].filter((entry, index, all) =>
-    all.findIndex((candidate) => candidate.id === entry.id) === index,
-  )
+  const facets = plan.facets.map((facet) => facet.name)
+  const constructorEntries = plan.constructorEntries
+  const initializerModules = plan.initializerModules
+  const interfaces = plan.interfaces
   const imports = [
     `import "@perfect-abstractions/compose/diamond/DiamondMod.sol" as DiamondMod;`,
     ...initializerModules.map((path) => `import "${path}" as ${path.split("/").pop()!.replace(".sol", "")};`),
@@ -727,7 +684,7 @@ pragma solidity ^0.8.30;
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 import {Diamond} from "../src/Diamond.sol";
-${facets.map(f => `import {${f}} from "../src/${f}.sol";`).join("\n")}
+${facets.map(f => `import {${f}} from "../src/facets/${f}.sol";`).join("\n")}
 
 contract DeployScript is Script {
     function setUp() public {}

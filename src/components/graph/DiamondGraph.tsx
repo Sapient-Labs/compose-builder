@@ -6,7 +6,7 @@ import { TOUCH, Vector3 } from "three";
 import type { BufferGeometry, Group } from "three";
 import { EdgesGeometry } from "three";
 import { useLaunchpadStore } from "@/lib/state/store";
-import { getAccessBases, resolveCatalogSelection } from "@/lib/compose-core";
+import { getAccessBases, planComposition } from "@/lib/compose-core";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { createBrilliantDiamondGeometry } from "./brilliantDiamond";
@@ -213,7 +213,7 @@ function GraphScene({
         dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true }}
         style={{ touchAction: "none", width: "100%", height: "100%" }}
-        aria-label="Active diamond composition, 3D graph"
+        aria-label="Active project composition, 3D graph"
       >
         <CameraFrame positions={positions} viewKey={viewKey} />
         <ambientLight intensity={1.6} />
@@ -288,20 +288,14 @@ type DiamondGraphProps = {
 };
 
 export function DiamondGraph({ className }: DiamondGraphProps) {
-  const { catalog, config } = useLaunchpadStore();
+  const { catalog, activeProject } = useLaunchpadStore();
+  const config = activeProject?.config;
   const [selectedId, setSelectedId] = useState<string>();
 
   const nodes = useMemo<DiamondFacetNode[]>(() => {
-    if (!catalog) return [];
+    if (!catalog || !config) return [];
 
-    const selection = resolveCatalogSelection(
-      catalog,
-      config.baseKey,
-      config.selectedLibraries,
-      config.selectedExtensions,
-      config.selectedAccess,
-      config.selectedAccessExtensions,
-    );
+    const plan = planComposition(catalog, config);
 
     const nodes: DiamondFacetNode[] = [];
     const push = (
@@ -315,14 +309,16 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
       }
     };
 
-    const facetNames = [
-      ...new Set([
-        ...Object.keys(selection.requiredFacets),
-        ...config.selectedExtensions,
-      ]),
-    ];
-    for (const name of facetNames) {
-      push(`facet:${name}`, name, CATEGORY_COLORS.token, "facet");
+    for (const facet of plan.facets) {
+      const group = facet.group === "library" ? "library" : "facet";
+      push(
+        `${group}:${facet.name}`,
+        facet.name,
+        group === "library"
+          ? CATEGORY_COLORS.interfaceDetection
+          : CATEGORY_COLORS.token,
+        group,
+      );
     }
 
     for (const name of config.selectedLibraries) {
@@ -347,7 +343,7 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
     for (const key of config.selectedAccessExtensions) {
       push(
         `access-ext:${key}`,
-        accessBases[key]?.label ?? key,
+        plan.accessExtensions.find((facet) => facet.name === key)?.name ?? key,
         CATEGORY_COLORS.access,
         "access",
       );
@@ -363,14 +359,16 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
 
   const viewKey = useMemo(
     () =>
-      [
+      config
+        ? [
         config.baseKey,
         config.selectedExtensions.join(","),
         config.selectedLibraries.join(","),
         config.selectedAccess.join(","),
         config.selectedAccessExtensions.join(","),
         nodes.length,
-      ].join("|"),
+          ].join("|")
+        : "empty",
     [config, nodes.length],
   );
 
@@ -400,7 +398,7 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
         </div>
         {nodes.length === 0 ? (
           <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-            Select a base to preview the diamond composition graph.
+            Select a starting point to preview the project composition graph.
           </div>
         ) : (
           <GraphScene
@@ -436,7 +434,7 @@ export function DiamondGraph({ className }: DiamondGraphProps) {
           Access
         </span>
       </div>
-      <ul className="sr-only" aria-label="Diamond composition nodes">
+      <ul className="sr-only" aria-label="Project composition nodes">
         {nodes.map((node) => (
           <li key={node.id}>{node.name} ({node.group})</li>
         ))}

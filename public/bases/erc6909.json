@@ -1,6 +1,7 @@
 {
   "erc-6909": {
-    "label": "ERC-6909",
+    "label": "Minimal Multi-Token",
+    "standard": "ERC-6909",
     "order": 6,
     "erc165": {
       "path": "@perfect-abstractions/compose/interfaces/IERC6909.sol",
@@ -26,10 +27,12 @@
     },
     "optional": {
       "ERC6909BurnFacet": {
+        "label": "Burn",
         "path": "@perfect-abstractions/compose/token/ERC6909/Burn/ERC6909BurnFacet.sol",
         "mod": "@perfect-abstractions/compose/token/ERC6909/Burn/ERC6909BurnMod.sol"
       },
       "RoyaltyFacet": {
+        "label": "Royalty",
         "path": "@perfect-abstractions/compose/token/Royalty/RoyaltyFacet.sol",
         "mod": "@perfect-abstractions/compose/token/Royalty/RoyaltyMod.sol",
         "constructor": [

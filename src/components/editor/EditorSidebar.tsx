@@ -28,7 +28,7 @@ export function EditorSidebar() {
       >
         <img src="/logo.svg" alt="Compose" className="size-4 shrink-0" />
         {!sidebarCollapsed && (
-          <span className="font-semibold truncate max-md:hidden">Compose Launchpad</span>
+          <span className="font-semibold truncate max-md:hidden">Compose Builder</span>
         )}
       </div>
 
@@ -96,6 +96,19 @@ export function EditorSidebar() {
               {sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             </TooltipContent>
           </Tooltip>
+          {!sidebarCollapsed && (
+            <footer className="mt-3 border-t border-sidebar-border/60 px-2.5 pt-3 text-[10px] leading-none text-muted-foreground/60 max-md:hidden">
+              © {new Date().getFullYear()} {" "}
+              <a
+                href="https://compose.diamonds"
+                target="_blank"
+                rel="noreferrer"
+                className="transition-colors hover:text-sidebar-foreground"
+              >
+                Compose
+              </a>
+            </footer>
+          )}
         </div>
       </nav>
     </aside>

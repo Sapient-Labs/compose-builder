@@ -1,6 +1,7 @@
 {
   "erc-20": {
-    "label": "ERC-20",
+    "label": "Fungible Token",
+    "standard": "ERC-20",
     "order": 2,
     "erc165": {
       "path": "@perfect-abstractions/compose/interfaces/IERC20.sol",
@@ -20,9 +21,11 @@
     },
     "optional": {
       "ERC20BurnFacet": {
+        "label": "Burn",
         "path": "@perfect-abstractions/compose/token/ERC20/Burn/ERC20BurnFacet.sol"
       },
       "ERC20MetadataFacet": {
+        "label": "Metadata",
         "path": "@perfect-abstractions/compose/token/ERC20/Metadata/ERC20MetadataFacet.sol",
         "mod": "@perfect-abstractions/compose/token/ERC20/Metadata/ERC20MetadataMod.sol",
         "constructor": [
@@ -35,9 +38,11 @@
         ]
       },
       "ERC20PermitFacet": {
+        "label": "Permit",
         "path": "@perfect-abstractions/compose/token/ERC20/Permit/ERC20PermitFacet.sol"
       },
       "ERC20BridgeableFacet": {
+        "label": "Bridgeable",
         "path": "@perfect-abstractions/compose/token/ERC20/Bridgeable/ERC20BridgeableFacet.sol"
       }
     }

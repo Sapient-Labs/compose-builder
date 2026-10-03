@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { useLaunchpadStore } from "@/lib/state/store"
-import { getAccessBases, getAvailableLibraryFacets, EMPTY_BASE } from "@/lib/compose-core"
+import { getAccessBases, getAvailableLibraryFacets, planComposition, EMPTY_BASE } from "@/lib/compose-core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CollapsibleSection } from "@/components/ui/collapsible"
@@ -19,8 +19,27 @@ import {
   Check
 } from "lucide-react"
 
+function accessExtensionLabel(name: string): string {
+  const withoutSuffix = name.replace(/Facet$/, "")
+  if (withoutSuffix.startsWith("Owner")) {
+    return `${humanizeFacetName(withoutSuffix.slice("Owner".length))} Ownership`
+  }
+  if (withoutSuffix.startsWith("AccessControl")) {
+    return `Access ${humanizeFacetName(withoutSuffix.slice("AccessControl".length))}`
+  }
+  return humanizeFacetName(withoutSuffix)
+}
+
+function humanizeFacetName(name: string): string {
+  return name
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/Two Step/g, "Two-Step")
+    .trim()
+}
+
 export function ConfigPanel() {
-  const { catalog, config, setConfig, setViewMode } = useLaunchpadStore()
+  const { catalog, activeProject, setConfig, setViewMode } = useLaunchpadStore()
+  const config = activeProject?.config
   const [facetSearch, setFacetSearch] = useState("")
   const [librarySearch, setLibrarySearch] = useState("")
 
@@ -32,10 +51,10 @@ export function ConfigPanel() {
 
   const selectedBase = useMemo(() => {
     if (!catalog) return EMPTY_BASE
-    return config.baseKey === "none"
+    return config?.baseKey === "none"
       ? EMPTY_BASE
-      : catalog.features[config.baseKey]
-  }, [catalog, config.baseKey])
+      : catalog.features[config?.baseKey ?? "none"]
+  }, [catalog, config?.baseKey])
 
   const availableExtensions = useMemo(() => {
     if (!catalog) return []
@@ -51,25 +70,36 @@ export function ConfigPanel() {
 
   const accessBases = useMemo(() => {
     if (!catalog) return []
-    return Object.entries(getAccessBases(catalog, config.baseKey))
-  }, [catalog, config.baseKey])
+    return Object.entries(getAccessBases(catalog, config?.baseKey))
+  }, [catalog, config?.baseKey])
+
+  const availableAccessExtensions = useMemo(() => {
+    if (!catalog || !config || config.selectedAccess.length === 0) return []
+    return Object.entries(planComposition(catalog, config).availableAccessExtensions)
+  }, [catalog, config])
 
   // Filter facets by search
   const filteredExtensions = useMemo(() => {
     if (!facetSearch) return availableExtensions
-    return availableExtensions.filter(([name]) => 
-      name.toLowerCase().includes(facetSearch.toLowerCase())
+    const query = facetSearch.toLowerCase()
+    return availableExtensions.filter(
+      ([name, entry]) =>
+        name.toLowerCase().includes(query) ||
+        (entry.label ?? "").toLowerCase().includes(query)
     )
   }, [availableExtensions, facetSearch])
 
   const filteredLibraries = useMemo(() => {
     if (!librarySearch) return availableLibraries
-    return availableLibraries.filter(([name]) => 
-      name.toLowerCase().includes(librarySearch.toLowerCase())
+    const query = librarySearch.toLowerCase()
+    return availableLibraries.filter(
+      ([name, entry]) =>
+        name.toLowerCase().includes(query) ||
+        (entry.label ?? "").toLowerCase().includes(query)
     )
   }, [availableLibraries, librarySearch])
 
-  if (!catalog) return null
+  if (!catalog || !config) return null
 
   return (
     <div className="relative h-full bg-background">
@@ -78,19 +108,23 @@ export function ConfigPanel() {
         <div className="p-4 border-b">
           <h1 className="text-md font-semibold flex items-center gap-2">
             <Settings className="size-5" aria-hidden="true" />
-            Build your application
+            Build your smart contract project
           </h1>
         </div>
 
         <div className="p-2 space-y-1">
         {/* Base Selection - Always Open */}
         <CollapsibleSection 
-          title="Base" 
+            title="Starting point"
           defaultOpen={true}
           icon={Layers}
           badge={
             <Badge variant="secondary" className="ml-auto animate-in fade-in">
-              {config.baseKey === "none" ? "Blank" : selectedBase.label}
+              {config.baseKey === "none"
+                ? "Blank project"
+                : selectedBase.standard
+                  ? `${selectedBase.label} · ${selectedBase.standard}`
+                  : selectedBase.label}
             </Badge>
           }
         >
@@ -106,7 +140,7 @@ export function ConfigPanel() {
                 selectedAccessExtensions: [],
               })}
             >
-              Blank
+              Blank project
             </Button>
             {features.map(([key, definition]) => (
               <Tooltip key={key}>
@@ -122,14 +156,38 @@ export function ConfigPanel() {
                       selectedAccessExtensions: [],
                     })}
                   >
-                    <span>{definition.label}</span>
-                    <Badge variant="outline" className="ml-2">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="truncate">{definition.label}</span>
+                      {definition.standard && (
+                        <span
+                          className={cn(
+                            "text-xs font-normal opacity-70",
+                            config.baseKey !== key && "text-muted-foreground",
+                          )}
+                        >
+                          {definition.standard}
+                        </span>
+                      )}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "ml-2",
+                        config.baseKey === key &&
+                          "border-primary-foreground/50 text-primary-foreground",
+                      )}
+                    >
                       {Object.keys(definition.required).length + Object.keys(definition.optional).length}
                     </Badge>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p>{definition.label} - {Object.keys(definition.required).length} required, {Object.keys(definition.optional).length} optional</p>
+                  <p>
+                    {definition.label}
+                    {definition.standard ? ` (${definition.standard})` : ""} -{" "}
+                    {Object.keys(definition.required).length} required,{" "}
+                    {Object.keys(definition.optional).length} optional
+                  </p>
                 </TooltipContent>
               </Tooltip>
             ))}
@@ -139,7 +197,7 @@ export function ConfigPanel() {
         {/* Optional Facets */}
         {availableExtensions.length > 0 && (
           <CollapsibleSection 
-            title="Optional Facets" 
+            title="Optional Features"
             defaultOpen={false}
             icon={Puzzle}
             badge={
@@ -161,9 +219,6 @@ export function ConfigPanel() {
               )}
               {filteredExtensions.map(([name, entry]) => {
                 const isSelected = config.selectedExtensions.includes(name)
-                const hasConstructor = entry.constructor && entry.constructor.length > 0
-                const description = entry.constructor?.[0]?.comments?.[0] ?? 
-                  (hasConstructor ? "Requires initialization" : "Optional facet")
 
                 return (
                   <Tooltip key={name}>
@@ -173,7 +228,7 @@ export function ConfigPanel() {
                         aria-checked={isSelected}
                         tabIndex={0}
                         className={cn(
-                          "flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           isSelected 
                             ? "border-primary bg-primary/5 shadow-sm" 
                             : "hover:bg-accent/50 hover:border-accent-foreground/20"
@@ -191,29 +246,19 @@ export function ConfigPanel() {
                           }
                         }}
                       >
-                        <span aria-hidden="true" className="mt-0.5 pointer-events-none">
+                        <span aria-hidden="true" className="pointer-events-none">
                           <span className={cn("flex size-4 items-center justify-center rounded-[4px] border", isSelected && "border-primary bg-primary text-primary-foreground")}>
                             {isSelected && <Check className="size-3.5" />}
                           </span>
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{name}</span>
-                            {hasConstructor && (
-                              <Badge variant="secondary" className="text-xs">
-                                Init
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1 truncate">
-                            {description}
-                          </p>
+                          <span className="text-sm font-medium">{entry.label ?? name}</span>
                         </div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-xs">
-                      <p className="font-medium">{name}</p>
-                      <p className="text-xs opacity-80 mt-1">{description}</p>
+                      <p className="font-medium">{entry.label ?? name}</p>
+                      <p className="text-xs opacity-80 mt-0.5 font-mono">{name}</p>
                     </TooltipContent>
                   </Tooltip>
                 )
@@ -230,7 +275,7 @@ export function ConfigPanel() {
         {/* Libraries */}
         {availableLibraries.length > 0 && (
           <CollapsibleSection 
-            title="Libraries" 
+            title="Libraries and Dependencies"
             defaultOpen={false}
             icon={Library}
             badge={
@@ -246,11 +291,11 @@ export function ConfigPanel() {
                 <SearchInput
                   value={librarySearch}
                   onChange={setLibrarySearch}
-                  placeholder="Search libraries..."
+                  placeholder="Search libraries and dependencies..."
                   className="mb-2"
                 />
               )}
-              {filteredLibraries.map(([name]) => {
+              {filteredLibraries.map(([name, entry]) => {
                 const isSelected = config.selectedLibraries.includes(name)
 
                 return (
@@ -283,7 +328,7 @@ export function ConfigPanel() {
                         {isSelected && <Check className="size-3.5" />}
                       </span>
                     </span>
-                    <span className="text-sm font-medium">{name}</span>
+                    <span className="text-sm font-medium">{entry.label ?? name}</span>
                   </div>
                 )
               })}
@@ -299,7 +344,7 @@ export function ConfigPanel() {
         {/* Access Control */}
         {accessBases.length > 0 && (
           <CollapsibleSection 
-            title="Access Control" 
+            title="Permissions"
             defaultOpen={false}
             icon={Shield}
             badge={
@@ -342,7 +387,10 @@ export function ConfigPanel() {
                                   ),
                                   key,
                                 ]
-                            setConfig({ selectedAccess: newAccess })
+                            setConfig({
+                              selectedAccess: newAccess,
+                              selectedAccessExtensions: [],
+                            })
                           }}
                         >
                           {definition.label}
@@ -373,13 +421,74 @@ export function ConfigPanel() {
                             const newAccess = isSelected
                               ? config.selectedAccess.filter((a) => a !== key)
                               : [...config.selectedAccess, key]
-                            setConfig({ selectedAccess: newAccess })
+                            setConfig({
+                              selectedAccess: newAccess,
+                              selectedAccessExtensions: [],
+                            })
                           }}
                         >
                           {definition.label}
                         </Button>
                       )
                     })}
+                </div>
+              )}
+
+              {availableAccessExtensions.length > 0 && (
+                <div className="space-y-3 border-t pt-5">
+                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Puzzle className="size-3" />
+                    Permissions Extensions
+                    {config.selectedAccessExtensions.length > 0 && (
+                      <Badge variant="secondary" className="ml-auto">
+                        {config.selectedAccessExtensions.length}
+                      </Badge>
+                    )}
+                  </div>
+                  {availableAccessExtensions.map(([name]) => {
+                    const isSelected = config.selectedAccessExtensions.includes(name)
+                    const label = accessExtensionLabel(name)
+
+                    return (
+                      <Tooltip key={name}>
+                        <TooltipTrigger asChild>
+                          <div
+                            role="checkbox"
+                            aria-checked={isSelected}
+                            tabIndex={0}
+                            className={cn(
+                              "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              isSelected
+                                ? "border-primary bg-primary/5 shadow-sm"
+                                : "hover:bg-accent/50 hover:border-accent-foreground/20",
+                            )}
+                            onClick={() => {
+                              const nextExtensions = isSelected
+                                ? config.selectedAccessExtensions.filter((item) => item !== name)
+                                : [...config.selectedAccessExtensions, name]
+                              setConfig({ selectedAccessExtensions: nextExtensions })
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault()
+                                event.currentTarget.click()
+                              }
+                            }}
+                          >
+                            <span aria-hidden="true" className="mt-0.5 pointer-events-none">
+                              <span className={cn("flex size-4 items-center justify-center rounded-[4px] border", isSelected && "border-primary bg-primary text-primary-foreground")}>
+                                {isSelected && <Check className="size-3.5" />}
+                              </span>
+                            </span>
+                            <span className="text-sm font-medium">{label}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          <p>{label}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -391,7 +500,7 @@ export function ConfigPanel() {
 
         <div className="absolute inset-x-0 bottom-0 border-t bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <Button className="w-full" onClick={() => setViewMode("project")}>
-            Review project
+            Generate project
             <ArrowRight className="size-4" aria-hidden="true" />
           </Button>
         </div>

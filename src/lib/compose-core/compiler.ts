@@ -171,7 +171,7 @@ function collectSelectorEntries(
     );
     if (!hasExportSelectors) {
       messages.push(
-        `${facet.name} is missing exportSelectors(). Diamond adapter registration will fail.`,
+        `${facet.name} is missing exportSelectors(). Module integration will fail.`,
       );
     }
 
@@ -223,7 +223,7 @@ function validateDiamondOutput(
   const messages: string[] = [];
   const contract = output.contracts?.["contracts/Diamond.sol"]?.Diamond;
   if (!contract)
-    return emptyValidation(["Diamond.sol did not produce a Diamond contract."]);
+    return emptyValidation(["The generated project did not produce its main contract."]);
 
   const abi = Array.isArray(contract.abi) ? contract.abi : [];
   const constructor = abi.find((item: { type?: string }) => item.type === "constructor");
@@ -233,16 +233,16 @@ function validateDiamondOutput(
     constructor.inputs?.length === 1 &&
     constructor.inputs[0]?.type === "address[]";
   if (!constructorOk)
-    messages.push("The generated Diamond must have one nonpayable address[] constructor.");
+    messages.push("The generated contract must have one nonpayable address[] constructor.");
 
   const hasFallback = abi.some((item: { type?: string }) => item.type === "fallback");
-  if (!hasFallback) messages.push("The generated Diamond has no fallback route.");
+  if (!hasFallback) messages.push("The generated contract has no fallback route.");
 
   const creation = contract.evm?.bytecode?.object ?? "";
   const runtime = contract.evm?.deployedBytecode?.object ?? "";
   const creationBytes = hexBytes(creation);
   const runtimeBytes = hexBytes(runtime);
-  if (!creationBytes) messages.push("The generated Diamond has no creation bytecode.");
+  if (!creationBytes) messages.push("The generated contract has no creation bytecode.");
   if (creationBytes > CREATION_BYTECODE_LIMIT)
     messages.push("Creation bytecode exceeds the EVM limit.");
   if (runtimeBytes > RUNTIME_BYTECODE_LIMIT)
@@ -254,7 +254,7 @@ function validateDiamondOutput(
   const storage = collectStorageEntries(facetInputs);
   const inspectFacet = facetInputs.find((facet) => facet.name === "DiamondInspectFacet");
   if (facetInputs.length > 0 && !inspectFacet) {
-    messages.push("DiamondInspectFacet is required for loupe introspection and is missing.");
+    messages.push("An inspection module is required for contract introspection and is missing.");
   } else if (inspectFacet) {
     const methodIdentifiers: Record<string, string> =
       output.contracts?.[inspectFacet.path]?.DiamondInspectFacet?.evm?.methodIdentifiers ?? {};
@@ -269,7 +269,7 @@ function validateDiamondOutput(
     );
     if (missingLoupe.length > 0) {
       messages.push(
-        `DiamondInspectFacet is missing loupe selectors: ${missingLoupe.join(", ")}.`,
+        `The inspection module is missing required selectors: ${missingLoupe.join(", ")}.`,
       );
     }
   }

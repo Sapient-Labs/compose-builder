@@ -4,6 +4,7 @@
     "required": {},
     "optional": {
       "ERC165Facet": {
+        "label": "Interface Support",
         "path": "@perfect-abstractions/compose/interfaceDetection/ERC165/ERC165Facet.sol"
       }
     }

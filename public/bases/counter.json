@@ -12,12 +12,15 @@
     },
     "optional": {
       "CounterDecrementFacet": {
+        "label": "Decrement",
         "path": "./src/templates/counter/CounterDecrementFacet.sol"
       },
       "CounterResetFacet": {
+        "label": "Reset",
         "path": "./src/templates/counter/CounterResetFacet.sol"
       },
       "CounterSetFacet": {
+        "label": "Set",
         "path": "./src/templates/counter/CounterSetFacet.sol"
       }
     }

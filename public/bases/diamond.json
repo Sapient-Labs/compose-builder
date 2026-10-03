@@ -1,6 +1,6 @@
 {
   "diamond": {
-    "label": "Diamond",
+    "label": "Composable contract",
     "pragma": ">=0.8.30",
     "compilerVersion": "0.8.30",
     "required": {
@@ -10,6 +10,7 @@
     },
     "optional": {
       "DiamondUpgradeFacet": {
+        "label": "Upgrade",
         "path": "@perfect-abstractions/compose/diamond/DiamondUpgradeFacet.sol"
       }
     }
