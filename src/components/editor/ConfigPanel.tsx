@@ -12,7 +12,6 @@ import {
   Puzzle,
   Library,
   Shield,
-  Settings,
   User,
   Users,
   ArrowRight,
