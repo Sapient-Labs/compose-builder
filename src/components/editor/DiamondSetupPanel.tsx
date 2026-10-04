@@ -1,8 +1,8 @@
 import { useId, useMemo, useState } from "react"
-import { ArrowRight, ChevronDown, Gem } from "lucide-react"
+import { ArrowRight, Gem } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EMPTY_BASE, getAccessBases, getAvailableLibraryFacets, planComposition } from "@/lib/compose-core"
 import { updateWorkspaceConfig } from "@/lib/compose-core/workspaceConfig"
 import { useLaunchpadStore } from "@/lib/state/store"
@@ -11,8 +11,6 @@ import type { DiamondConfig } from "@/types/config"
 
 const toggle = (values: string[], value: string) =>
   values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
-
-const selectClassName = "h-9 w-full min-w-0 appearance-none rounded-md border border-input bg-background py-1.5 pl-2.5 pr-8 text-xs shadow-xs outline-none transition-shadow focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
 
 function FacetChoices({
   legend,
@@ -65,7 +63,7 @@ function FacetChoices({
 /** Inline configuration for the existing project on the Workspace page. */
 export function DiamondSetupPanel({ onReview }: { onReview?: () => void }) {
   const id = useId()
-  const { catalog, activeProject, setConfig, updateProject, setViewMode } = useLaunchpadStore()
+  const { catalog, activeProject, setConfig, setViewMode } = useLaunchpadStore()
   const config = activeProject?.config
   const [error, setError] = useState("")
 
@@ -127,40 +125,34 @@ export function DiamondSetupPanel({ onReview }: { onReview?: () => void }) {
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label htmlFor={`${id}-name`} className="block text-xs font-semibold">Diamond name</label>
-            <Input id={`${id}-name`} value={activeProject.name} maxLength={100} autoComplete="off" className="h-9 text-xs" onChange={(event) => updateProject({ name: event.target.value })} />
-          </div>
-          <div className="space-y-1.5">
             <label htmlFor={`${id}-base`} className="block text-xs font-semibold">Base</label>
-            <div className="relative">
-              <select id={`${id}-base`} className={selectClassName} value={config.baseKey} onChange={(event) => update({ baseKey: event.target.value })}>
-                <option value="none">None · Blank diamond</option>
+            <Select value={config.baseKey} onValueChange={(baseKey) => update({ baseKey })}>
+              <SelectTrigger id={`${id}-base`} className="w-full min-w-0 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None · Blank diamond</SelectItem>
                 {bases.map(([key, definition]) => (
-                  <option key={key} value={key}>{definition.label}{definition.standard ? ` · ${definition.standard}` : ""}</option>
+                  <SelectItem key={key} value={key}>{definition.label}{definition.standard ? ` · ${definition.standard}` : ""}</SelectItem>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
-            </div>
+              </SelectContent>
+            </Select>
           </div>
 
           {ownership.length > 0 && (
             <div className="space-y-1.5">
               <label htmlFor={`${id}-owner`} className="block text-xs font-semibold">Ownership</label>
-              <div className="relative">
-                <select
-                  id={`${id}-owner`}
-                  className={selectClassName}
-                  value={selectedOwner}
-                  onChange={(event) => {
-                    const otherAccess = config.selectedAccess.filter((key) => !ownership.some(([ownerKey]) => ownerKey === key))
-                    update({ selectedAccess: event.target.value === "none" ? otherAccess : [...otherAccess, event.target.value] })
-                  }}
-                >
-                  <option value="none">None</option>
-                  {ownership.map(([key, definition]) => <option key={key} value={key}>{definition.label}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
-              </div>
+              <Select
+                value={selectedOwner}
+                onValueChange={(value) => {
+                  const otherAccess = config.selectedAccess.filter((key) => !ownership.some(([ownerKey]) => ownerKey === key))
+                  update({ selectedAccess: value === "none" ? otherAccess : [...otherAccess, value] })
+                }}
+              >
+                <SelectTrigger id={`${id}-owner`} className="w-full min-w-0 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {ownership.map(([key, definition]) => <SelectItem key={key} value={key}>{definition.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
@@ -184,20 +176,13 @@ export function DiamondSetupPanel({ onReview }: { onReview?: () => void }) {
         <FacetChoices legend="Access extensions" entries={Object.entries(plan?.availableAccessExtensions ?? {})} selected={config.selectedAccessExtensions} onChange={(selectedAccessExtensions) => update({ selectedAccessExtensions })} />
         <FacetChoices legend="Libraries" entries={libraries} selected={config.selectedLibraries} onChange={(selectedLibraries) => update({ selectedLibraries })} />
 
-        {plan && plan.constructorEntries.length > 0 && (
-          <p className="text-[11px] leading-4 text-muted-foreground">Review {plan.constructorEntries.length} initializer{plan.constructorEntries.length === 1 ? "" : "s"} and sample values in the generated source before deployment.</p>
-        )}
         {config.selectedLibraries.includes("DiamondUpgradeFacet") && selectedOwner === "none" && (
           <p className="text-[11px] leading-4 text-muted-foreground">Upgrade requires an initialized owner. Choose ownership or configure it in the source.</p>
-        )}
-        {roles.some(([key]) => config.selectedAccess.includes(key)) && (
-          <p className="text-[11px] leading-4 text-muted-foreground">Role access needs admin and role initialization in the generated source.</p>
         )}
       </div>
 
       <footer className="shrink-0 space-y-2 border-t bg-background px-3 py-3">
         {(error || preview.error) && <p className="break-words text-xs text-destructive" role="alert">{error || preview.error}</p>}
-        {plan && <p className="text-[11px] text-muted-foreground">{plan.facets.length} facet{plan.facets.length === 1 ? "" : "s"} in this diamond</p>}
         <Button size="sm" className="h-8 w-full text-xs" onClick={review} disabled={!plan}>
           Generate project
           <ArrowRight className="size-3.5" aria-hidden="true" />

@@ -1,3 +1,4 @@
+HTMLElement.prototype.scrollIntoView = vi.fn()
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
@@ -75,7 +76,8 @@ it("drives current generated source and compiler inputs from the new inline form
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))
   await waitFor(() => expect(vi.mocked(compileDiamond).mock.calls.at(-1)?.[1]?.some((x) => x.name === "CounterResetFacet")).toBe(true))
-  fireEvent.change(screen.getByRole("combobox", { name: "Base" }), { target: { value: "erc-20" } })
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Base" }), { key: "ArrowDown" })
+  fireEvent.click(screen.getByRole("option", { name: "Fungible Token · ERC-20" }))
   expect(screen.getByTestId("source").textContent).toContain("ERC20")
   expect(useLaunchpadStore.getState().activeProject!.config.selectedExtensions).toEqual([])
   await waitFor(() => {
@@ -83,7 +85,8 @@ it("drives current generated source and compiler inputs from the new inline form
     expect(last?.[0]).toContain("ERC20")
     expect(last?.[1]?.some((x) => x.name === "CounterResetFacet")).toBe(false)
   })
-  fireEvent.change(screen.getByRole("combobox", { name: "Ownership" }), { target: { value: "owner" } })
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Ownership" }), { key: "ArrowDown" })
+  fireEvent.click(screen.getByRole("option", { name: "Owner" }))
   expect(screen.getByTestId("source").textContent).toContain("OwnerDataMod.setContractOwner")
 })
 

@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { afterEach, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { DiamondGraph } from "./DiamondGraph"
 import { useLaunchpadStore } from "@/lib/state/store"
 import { loadBasesCatalog } from "@/lib/compose-core"
 import { DiamondSetupPanel } from "@/components/editor/DiamondSetupPanel"
+
+HTMLElement.prototype.scrollIntoView = vi.fn()
 
 vi.mock("./webglSupport", () => ({ canRenderWebGL2: () => false }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -24,7 +26,8 @@ it("keeps composition selectable when WebGL is unavailable and follows configura
   expect(node.getAttribute("aria-pressed")).toBe("false")
   fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))
   expect(screen.getByRole("button", { name: "CounterResetFacet facet" })).toBeTruthy()
-  act(() => fireEvent.change(screen.getByRole("combobox", { name: "Base" }), { target: { value: "none" } }))
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Base" }), { key: "ArrowDown" })
+  fireEvent.click(screen.getByRole("option", { name: "None · Blank diamond" }))
   expect(screen.queryByRole("button", { name: "CounterDataFacet facet" })).toBeNull()
   expect(screen.queryByRole("button", { name: "CounterResetFacet facet" })).toBeNull()
 })
