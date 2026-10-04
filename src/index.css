@@ -104,6 +104,8 @@
   --graph-background: #f8fafc;
   --graph-surface: rgba(255, 255, 255, 0.86);
   --graph-muted: #64748b;
+  --scrollbar-thumb: #7c8a9f;
+  --scrollbar-thumb-hover: #52637d;
 }
 
 .dark {
@@ -142,6 +144,62 @@
   --graph-background: #020613;
   --graph-surface: rgba(15, 23, 42, 0.86);
   --graph-muted: #94a3b8;
+  --scrollbar-thumb: #64748b;
+  --scrollbar-thumb-hover: #94a3b8;
+}
+
+/* One native scrollbar treatment for both pages, nested code and overflow panes.
+   Keep the standard thin fallback for Firefox; Blink/WebKit support exact sizing.
+   Radix Select keeps its own intentionally hidden viewport scrollbar and arrows. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    min-height: 28px;
+    min-width: 28px;
+    border-radius: 999px;
+    background: var(--scrollbar-thumb);
+  }
+  *::-webkit-scrollbar-thumb:hover,
+  *::-webkit-scrollbar-thumb:active {
+    background: var(--scrollbar-thumb-hover);
+  }
+  *::-webkit-scrollbar-button {
+    display: none;
+  }
+}
+
+/* Let high-contrast users retain their system colors and full-size controls. */
+@media (forced-colors: active) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  *::-webkit-scrollbar {
+    width: auto;
+    height: auto;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: CanvasText;
+  }
+  *::-webkit-scrollbar-button {
+    display: revert;
+  }
 }
 
 @layer base {
