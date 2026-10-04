@@ -221,9 +221,13 @@ a {
   border-color: var(--border);
   background: var(--card);
   color: var(--foreground);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
 }
 
+.graph-label:hover,
 .graph-label[data-active="true"] {
   border-color: var(--primary);
   color: var(--foreground);

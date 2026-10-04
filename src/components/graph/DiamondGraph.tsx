@@ -18,6 +18,7 @@ import {
 } from "./diamondLayout";
 import type { DiamondFacetNode, DiamondPosition } from "./diamondLayout";
 import { useGraphPointerGesture } from "./graphInteraction";
+import { LabelOverlay } from "./LabelOverlay";
 import { canRenderWebGL2 } from "./webglSupport";
 
 class GraphRenderBoundary extends Component<
@@ -223,79 +224,6 @@ function BrilliantDiamond({ selected = false }: { selected?: boolean }) {
   );
 }
 
-/** DOM labels projected from 3D — portal onto the canvas parent (not scene graph). */
-function LabelOverlay({
-  nodes,
-  positions,
-  activeId,
-  hovered,
-}: {
-  nodes: DiamondFacetNode[];
-  positions: Map<string, DiamondPosition>;
-  activeId?: string;
-  hovered?: string;
-}) {
-  const { camera, size, gl, invalidate } = useThree();
-  const scratch = useRef(new Vector3());
-  const itemEls = useRef(new Map<string, HTMLDivElement>());
-  const rootEl = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const host = gl.domElement.parentElement;
-    if (!host) return;
-
-    const root = document.createElement("div");
-    root.className =
-      "pointer-events-none absolute left-0 top-0 z-20 overflow-hidden";
-    root.setAttribute("aria-hidden", "true");
-    host.appendChild(root);
-    rootEl.current = root;
-
-    const els = new Map<string, HTMLDivElement>();
-    for (const node of nodes) {
-      const el = document.createElement("div");
-      el.className =
-        "graph-label absolute hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border px-2 py-1 text-[11px] font-medium leading-none shadow-sm";
-      el.textContent = node.name;
-      root.appendChild(el);
-      els.set(node.id, el);
-    }
-    itemEls.current = els;
-
-    invalidate();
-
-    return () => {
-      root.remove();
-      rootEl.current = null;
-      itemEls.current = new Map();
-      els.clear();
-    };
-  }, [gl, invalidate, nodes]);
-
-  useFrame(() => {
-    const root = rootEl.current;
-    if (!root) return;
-    root.style.width = `${size.width}px`;
-    root.style.height = `${size.height}px`;
-    camera.updateMatrixWorld();
-
-    for (const node of nodes) {
-      const point = positions.get(node.id);
-      const el = itemEls.current.get(node.id);
-      if (!point || !el) continue;
-      scratch.current.set(point[0], point[1], point[2]).project(camera);
-      const visible = scratch.current.z > -1 && scratch.current.z < 1;
-      el.style.display = visible ? "block" : "none";
-      if (!visible) continue;
-      el.style.left = `${(scratch.current.x * 0.5 + 0.5) * size.width}px`;
-      el.style.top = `${(-scratch.current.y * 0.5 + 0.5) * size.height - 22}px`;
-      el.dataset.active =
-        node.id === activeId || node.id === hovered ? "true" : "false";
-    }
-  });
-
-  return null;
-}
 
 function GraphScene({
   nodes,
@@ -423,6 +351,8 @@ function GraphScene({
           positions={positions}
           activeId={activeId}
           hovered={hovered}
+          selectedId={selectedId}
+          onSelect={onSelect}
         />
       </Canvas>
     </div>

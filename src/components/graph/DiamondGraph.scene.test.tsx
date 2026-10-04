@@ -3,21 +3,31 @@ import { Children, isValidElement } from "react"
 import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from "react"
 import type { CanvasProps, ThreeEvent } from "@react-three/fiber"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { act, cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { PerspectiveCamera } from "three"
+import { LabelOverlay } from "./LabelOverlay"
 import { DiamondGraph } from "./DiamondGraph"
 import { useLaunchpadStore } from "@/lib/state/store"
 import type { BasesCatalog } from "@/types/catalog"
 
 // Keep actual graph event handlers and gesture state while avoiding a WebGL
 // dependency in jsdom. Children remain a scene tree we can inspect and click.
-const scene = vi.hoisted(() => ({ current: undefined as CanvasProps | undefined }))
+const scene = vi.hoisted(() => ({
+  current: undefined as CanvasProps | undefined,
+  renderLabels: false,
+  frame: undefined as (() => void) | undefined,
+  state: undefined as unknown,
+  host: undefined as HTMLDivElement | undefined,
+}))
 vi.mock("@react-three/fiber", () => ({
   Canvas: (props: CanvasProps) => {
     scene.current = props
-    return <div data-testid="graph-canvas" />
+    return <div data-testid="graph-canvas">{scene.renderLabels && Children.toArray(props.children).filter(
+      (child) => isValidElement(child) && child.type === LabelOverlay,
+    )}</div>
   },
-  useFrame: vi.fn(),
-  useThree: vi.fn(),
+  useFrame: (frame: () => void) => { scene.frame = frame },
+  useThree: () => scene.state,
 }))
 vi.mock("@react-three/drei", () => ({ Line: () => null, OrbitControls: () => null }))
 
@@ -75,7 +85,14 @@ beforeEach(() => {
   useLaunchpadStore.getState().setCatalog(catalog)
   useLaunchpadStore.getState().setConfig({ baseKey: "counter", selectedAccess: ["owner"] })
 })
-afterEach(() => { cleanup(); scene.current = undefined })
+afterEach(() => {
+  cleanup()
+  scene.current = undefined
+  scene.renderLabels = false
+  scene.frame = undefined
+  scene.host?.remove()
+  scene.host = undefined
+})
 
 it("selects the 3D Diamond and facet sources, with blank click clearing only graph selection", () => {
   const onSourceSelect = vi.fn()
@@ -157,4 +174,59 @@ it("does not add center source interactions to classic graph consumers", () => {
   finishGesture()
   clickBlank()
   expect(screen.queryByText("CounterDataFacet", { exact: true })).toBeNull()
+})
+
+
+it("routes projected label buttons through the same source selection as stars", () => {
+  const camera = new PerspectiveCamera(45, 2, 0.1, 100)
+  camera.position.set(0, 0, 15)
+  camera.lookAt(0, 0, 0)
+  scene.host = document.createElement("div")
+  const canvas = document.createElement("canvas")
+  scene.host.append(canvas)
+  document.body.append(scene.host)
+  scene.state = { camera, size: { width: 800, height: 400 }, gl: { domElement: canvas }, invalidate: vi.fn() }
+  scene.renderLabels = true
+  useLaunchpadStore.getState().setConfig({
+    selectedLibraries: ["ERC165Facet"],
+    selectedAccessExtensions: ["OwnerRenounceFacet"],
+  })
+  const onSourceSelect = vi.fn()
+  const { rerender } = render(<DiamondGraph onSourceSelect={onSourceSelect} />)
+  scene.frame!()
+  const selectLabel = (name: string) => {
+    const button = screen.getByRole("button", { name })
+    for (const type of ["pointerdown", "pointerup"]) {
+      const event = new Event(type, { bubbles: true })
+      Object.assign(event, pointer())
+      fireEvent(button, event)
+    }
+    fireEvent.click(button, { clientX: 20, clientY: 30, button: 0, detail: 1 })
+    scene.frame!()
+    expect(button.getAttribute("aria-pressed")).toBe("true")
+  }
+  for (const [name, path] of [
+    ["CounterDataFacet facet", "src/facets/CounterDataFacet.sol"],
+    ["ERC165Facet library", "src/facets/ERC165Facet.sol"],
+    ["OwnerRenounceFacet access", "src/facets/OwnerRenounceFacet.sol"],
+  ]) {
+    selectLabel(name)
+    expect(onSourceSelect).toHaveBeenLastCalledWith(path)
+  }
+  expect(onSourceSelect).toHaveBeenCalledTimes(3)
+  selectLabel("Owner access")
+  expect(onSourceSelect).toHaveBeenCalledTimes(3)
+
+  startGesture()
+  finishGesture()
+  clickGroup("facet:facet:CounterDataFacet")
+  scene.frame!()
+  expect(screen.getByRole("button", { name: "CounterDataFacet facet" }).getAttribute("aria-pressed")).toBe("true")
+  expect(onSourceSelect).toHaveBeenLastCalledWith("src/facets/CounterDataFacet.sol")
+
+  const latestSourceSelect = vi.fn()
+  rerender(<DiamondGraph onSourceSelect={latestSourceSelect} />)
+  selectLabel("CounterDataFacet facet")
+  expect(latestSourceSelect).toHaveBeenCalledExactlyOnceWith("src/facets/CounterDataFacet.sol")
+  expect(onSourceSelect).toHaveBeenCalledTimes(4)
 })
