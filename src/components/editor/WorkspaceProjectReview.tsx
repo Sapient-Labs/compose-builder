@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { AlertTriangle, Check, Copy, Fuel, Loader2 } from "lucide-react"
+import { AlertTriangle, Check, Copy, Fuel, Loader2, Terminal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
@@ -128,6 +128,27 @@ function DiamondCreationEstimate({ currentCompileResult, compiling, currentCompi
   )
 }
 
+/** Presentation only: preserve quoted/escaped values, never change the copied command. */
+function formatCommandPreview(command: string) {
+  let formatted = ""
+  let quote = ""
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index]
+    if (char === "\\" && quote !== "'") {
+      formatted += char + (command[++index] ?? "")
+      continue
+    }
+    if (char === "'" || char === '"') {
+      if (!quote) quote = char
+      else if (quote === char) quote = ""
+    }
+    if (!quote && char === " " && /^--[a-z][a-z-]*(?:\s|=|$)/i.test(command.slice(index + 1))) {
+      formatted += "\n  "
+    } else formatted += char
+  }
+  return formatted
+}
+
 function ComposeCommandBox({ command }: { command: string }) {
   const [copyState, setCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle")
   useEffect(() => {
@@ -147,17 +168,21 @@ function ComposeCommandBox({ command }: { command: string }) {
   }
 
   return (
-    <section className="min-w-0 shrink-0 space-y-2 rounded-lg border p-3" aria-label="Compose CLI command">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Compose command</h3>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={copyCommand} disabled={copyState === "copying"} aria-label="Copy Compose command">
+    <section className="min-w-0 shrink-0 overflow-hidden rounded-lg border border-[#263142] bg-[#0b0e14] text-[#e0e7f0]" aria-label="Compose CLI command">
+      <div className="flex items-center justify-between gap-2 border-b border-[#263142] bg-[#141a24] px-3 py-2">
+        <h3 className="flex items-center gap-2 font-mono text-xs font-medium"><Terminal className="size-3.5 text-slate-400" aria-hidden="true" />Compose command</h3>
+        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs text-slate-300 hover:bg-[#253044] hover:text-white focus-visible:ring-slate-400" onClick={copyCommand} disabled={copyState === "copying"} aria-label="Copy Compose command" title="Copy the runnable command as one line">
           {copyState === "copied" ? <Check className="size-3" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}
           {copyState === "copied" ? "Copied" : copyState === "copying" ? "Copying…" : "Copy"}
         </Button>
       </div>
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed [overflow-wrap:anywhere]"><code aria-label="Compose command">{command}</code></pre>
+      <div className="flex min-w-0 items-start gap-3 px-3 py-3 font-mono text-xs leading-relaxed">
+        <span aria-hidden="true" className="shrink-0 cursor-default select-none text-emerald-300">$</span>
+        <pre tabIndex={0} aria-label="Command preview" className="min-w-0 flex-1 max-h-40 cursor-default caret-transparent overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-slate-400 [overflow-wrap:anywhere]"><code aria-label="Compose command" className="cursor-default caret-transparent">{copyState === "error" ? command : formatCommandPreview(command)}</code></pre>
+      </div>
+      <p className="px-3 pb-2 text-[10px] text-slate-400">Copy returns one runnable line.</p>
       {copyState === "error" ? (
-        <p className="text-xs text-destructive" role="alert">Copy failed. Select and copy the command manually.</p>
+        <p className="px-3 pb-3 text-xs text-rose-300" role="alert">Copy failed. Select and copy the command manually.</p>
       ) : <span className="sr-only" role="status" aria-live="polite">{copyState === "copied" ? "Compose command copied." : ""}</span>}
     </section>
   )
