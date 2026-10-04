@@ -1,10 +1,9 @@
-import { useState } from "react"
-import { AlertTriangle, Fuel, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { AlertTriangle, Check, Copy, Fuel, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
-  ContractGasEstimates,
   DiamondCompileResult,
-  GasEstimateValue,
   SelectorEntry,
   StorageEntry,
 } from "@/lib/compose-core/compiler"
@@ -79,37 +78,88 @@ export function ProjectDataPanel(props: ProjectReviewProps) {
   )
 }
 
-export function GasEstimatePanel(props: ProjectReviewProps) {
-  const { currentCompileResult, compiling, currentCompileError } = props
-  const ready = !compiling && !currentCompileError && !!currentCompileResult &&
-    !currentCompileResult.diagnostics.some((diagnostic) => diagnostic.severity === "error")
-  const estimates = ready ? currentCompileResult.gasEstimates : undefined
-
+export function GasEstimatePanel(props: ProjectReviewProps & { cliCommand: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="workspace-pane-header gap-2 border-b bg-muted/25 px-3 text-xs font-medium">
-        <Fuel className="size-4 text-muted-foreground" aria-hidden="true" />
-        <h2>Gas estimate</h2>
+        <h2>Project summary</h2>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        {!ready ? <CompileState {...props} subject="gas estimates" /> : !estimates?.contracts.length ? (
-          <div className="space-y-2" role="status">
-            <h3 className="text-sm font-semibold">Gas estimates unavailable</h3>
-            <p className="text-xs text-muted-foreground">The current compiler result did not return static gas estimates. No deployment or transaction estimate has been made.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-              <h3 className="text-sm font-semibold">Static compiler estimates</h3>
-              <p className="text-xs text-muted-foreground">solc {estimates.compilerVersion} · optimizer {estimates.optimizer.enabled ? `${estimates.optimizer.runs} runs` : "disabled"} · EVM {estimates.evmVersion}</p>
-              <p className="text-xs text-muted-foreground">Values are gas units for individual compiled contracts. Transaction overhead, Diamond routing and network fees are not included. Actual deployment and calls require simulation with their arguments.</p>
-              <p className="text-xs text-muted-foreground">“Not statically estimable” means solc returned “infinite”; it does not mean the operation necessarily fails.</p>
-            </div>
-            {estimates.contracts.map((contract) => <ContractGasCard key={`${contract.source}:${contract.contract}`} estimates={contract} />)}
-          </div>
-        )}
+      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-4">
+        <section className="min-w-0 shrink-0 space-y-2 rounded-lg border p-3" aria-label="Diamond deployment gas">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><Fuel className="size-4 text-muted-foreground" aria-hidden="true" />Gas estimate</h3>
+          <p className="text-xs text-muted-foreground">Diamond deployment</p>
+          <DiamondCreationEstimate {...props} />
+        </section>
+        <ComposeCommandBox key={props.cliCommand} command={props.cliCommand} />
       </div>
     </div>
+  )
+}
+
+function DiamondCreationEstimate({ currentCompileResult, compiling, currentCompileError }: ProjectReviewProps) {
+  if (compiling) return (
+    <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+      <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Compiling gas estimate…
+    </p>
+  )
+  if (currentCompileError || currentCompileResult?.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+    return <p className="text-xs text-destructive" role="alert">{currentCompileError ? "Compiler unavailable." : "Compilation failed."} Gas estimate unavailable.</p>
+  }
+  if (!currentCompileResult) {
+    return <p className="text-xs text-muted-foreground" role="status">Compile the project to estimate Diamond deployment gas.</p>
+  }
+
+  // Match the generated compiler source exactly; another contract's creation
+  // cost or Diamond's code-deposit component is never a deployment total.
+  const total = currentCompileResult.gasEstimates?.contracts.find((estimate) =>
+    estimate.contract === "Diamond" && estimate.source === "contracts/Diamond.sol",
+  )?.creation?.totalCost
+  if (total === "infinite") {
+    return <p className="text-xs text-muted-foreground" role="status">Not statically estimable. solc returned an unbounded creation cost.</p>
+  }
+  if (typeof total !== "string" || !/^\d+$/.test(total)) {
+    return <p className="text-xs text-muted-foreground" role="status">Gas estimate unavailable. No valid Diamond creation total in the current result.</p>
+  }
+  return (
+    <div>
+      <p className="text-lg font-semibold tabular-nums">{BigInt(total).toLocaleString("en-US")} gas</p>
+      <p className="mt-1 text-xs text-muted-foreground">Static solc creation estimate. Actual deployment requires simulation.</p>
+    </div>
+  )
+}
+
+function ComposeCommandBox({ command }: { command: string }) {
+  const [copyState, setCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle")
+  useEffect(() => {
+    if (copyState !== "copied") return
+    const timer = window.setTimeout(() => setCopyState("idle"), 2000)
+    return () => window.clearTimeout(timer)
+  }, [copyState])
+
+  const copyCommand = async () => {
+    setCopyState("copying")
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopyState("copied")
+    } catch {
+      setCopyState("error")
+    }
+  }
+
+  return (
+    <section className="min-w-0 shrink-0 space-y-2 rounded-lg border p-3" aria-label="Compose CLI command">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Compose command</h3>
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={copyCommand} disabled={copyState === "copying"} aria-label="Copy Compose command">
+          {copyState === "copied" ? <Check className="size-3" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}
+          {copyState === "copied" ? "Copied" : copyState === "copying" ? "Copying…" : "Copy"}
+        </Button>
+      </div>
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed [overflow-wrap:anywhere]"><code aria-label="Compose command">{command}</code></pre>
+      {copyState === "error" ? (
+        <p className="text-xs text-destructive" role="alert">Copy failed. Select and copy the command manually.</p>
+      ) : <span className="sr-only" role="status" aria-live="polite">{copyState === "copied" ? "Compose command copied." : ""}</span>}
+    </section>
   )
 }
 
@@ -144,53 +194,6 @@ function ReviewMessages({ result }: { result: DiamondCompileResult }) {
         <summary className="cursor-pointer">Compiler diagnostics ({diagnostics.length})</summary>
         {diagnostics.map((diagnostic, index) => <pre key={index} className="mt-2 whitespace-pre-wrap break-words">{diagnostic.message}</pre>)}
       </details>}
-    </div>
-  )
-}
-
-function formatGas(value?: GasEstimateValue) {
-  if (value === undefined) return "Unavailable"
-  if (value === "infinite") return "Not statically estimable"
-  return `${BigInt(value).toLocaleString("en-US")} gas`
-}
-
-function ContractGasCard({ estimates }: { estimates: ContractGasEstimates }) {
-  const creation = estimates.creation
-  return (
-    <section className="min-w-0 space-y-3 rounded-lg border p-3" aria-label={`${estimates.contract} gas estimates`}>
-      <div>
-        <h3 className="break-words text-sm font-semibold">{estimates.contract}</h3>
-        <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">{estimates.source}</p>
-      </div>
-      {creation && <div className="space-y-2">
-        <h4 className="text-xs font-medium">Contract creation</h4>
-        <dl className="space-y-2 text-xs">
-          {([
-            ["Code deposit", creation.codeDepositCost],
-            ["Execution", creation.executionCost],
-            ["solc creation total", creation.totalCost],
-          ] as const).map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-x-3 gap-y-1"><dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums">{formatGas(value)}</dd></div>)}
-        </dl>
-      </div>}
-      {Object.keys(estimates.external).length > 0 && <GasFunctionList label="External functions" values={estimates.external} />}
-      {Object.keys(estimates.internal).length > 0 && <details className="text-xs">
-        <summary className="cursor-pointer font-medium">Internal functions ({Object.keys(estimates.internal).length})</summary>
-        <div className="mt-2"><GasFunctionList label="Internal function estimates" values={estimates.internal} /></div>
-      </details>}
-    </section>
-  )
-}
-
-function GasFunctionList({ label, values }: { label: string; values: Record<string, GasEstimateValue> }) {
-  return (
-    <div className="space-y-2">
-      <h4 className="text-xs font-medium">{label}</h4>
-      <dl className="divide-y text-xs">
-        {Object.entries(values).map(([signature, value]) => <div key={signature} className="space-y-1 py-2 first:pt-0 last:pb-0">
-          <dt className="break-all font-mono text-muted-foreground">{signature || "Fallback / receive"}</dt>
-          <dd className="tabular-nums">{formatGas(value)}</dd>
-        </div>)}
-      </dl>
     </div>
   )
 }

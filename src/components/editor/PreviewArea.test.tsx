@@ -5,10 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { PreviewArea } from "./PreviewArea"
 import { useLaunchpadStore } from "@/lib/state/store"
-import { loadBasesCatalog } from "@/lib/compose-core"
+import { buildCliCommand, loadBasesCatalog } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
 
-vi.mock("@/components/ui/code-block", () => ({ CodeBlock: ({ code }: { code: string }) => <pre data-testid="source">{code}</pre> }))
+vi.mock("@/components/ui/code-block", () => ({ CodeBlock: ({ code, language }: { code: string; language?: string }) => <pre data-testid={language === "bash" ? "cli-command" : "source"}>{code}</pre> }))
 vi.mock("@/components/graph/DiamondGraph", () => ({ DiamondGraph: ({ onSourceSelect }: { onSourceSelect?: (path: string) => void }) => <div>Composition graph<button onClick={() => onSourceSelect?.("src/Diamond.sol")}>Graph diamond</button><button onClick={() => onSourceSelect?.("src/facets/CounterDataFacet.sol")}>Graph counter data</button><button onClick={() => onSourceSelect?.("src/facets/CounterIncrementFacet.sol")}>Graph counter increment</button></div> }))
 vi.mock("@/lib/compose-core/compiler", () => ({ compileDiamond: vi.fn(async () => ({ diagnostics: [], validation: { ok: true, messages: [], selectors: [], storage: [], collisionCount: 0 } })) }))
 
@@ -168,20 +168,37 @@ it("Project never displays previous selectors or gas while a changed selection c
   const oldResult = {
     diagnostics: [],
     validation: { ok: true, messages: [], selectors: [{ selector: "0x12345678", signature: "oldFunction()", facet: "CounterDataFacet", collision: false }], storage: [], collisionCount: 0 },
-    gasEstimates: { compilerVersion: "0.8.30", optimizer: { enabled: true, runs: 200 }, evmVersion: "paris", contracts: [{ contract: "OldGasContract", source: "src/Diamond.sol", external: { "oldGasCall()": "424242" as const }, internal: {} }] },
+    gasEstimates: { compilerVersion: "0.8.30", optimizer: { enabled: true, runs: 200 }, evmVersion: "paris", contracts: [{ contract: "Diamond", source: "contracts/Diamond.sol", creation: { totalCost: "424242" as const }, external: {}, internal: {} }] },
   }
   vi.mocked(compileDiamond).mockResolvedValueOnce(oldResult)
   render(<PreviewArea presentation="workspace" />)
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("button", { name: "Review project" }))
   expect(screen.getByText("oldFunction()")).toBeTruthy()
-  expect(screen.getByText("oldGasCall()")).toBeTruthy()
+  expect(screen.getByText("424,242 gas")).toBeTruthy()
   fireEvent.click(screen.getByRole("button", { name: "Builder" }))
   vi.mocked(compileDiamond).mockImplementationOnce(() => new Promise(() => {}))
   fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))
   fireEvent.click(screen.getByRole("button", { name: "Review project" }))
   expect(screen.queryByText("oldFunction()")).toBeNull()
-  expect(screen.queryByText("oldGasCall()")).toBeNull()
+  expect(screen.queryByText("424,242 gas")).toBeNull()
   expect(screen.getByText("Compiling")).toBeTruthy()
   expect(screen.queryByRole("table", { name: "Exported function selectors" })).toBeNull()
+})
+
+it("Project command follows current project configuration even while gas recompiles", async () => {
+  render(<PreviewArea presentation="workspace" />)
+  await screen.findByText("Compiled")
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
+  const command = () => buildCliCommand(useLaunchpadStore.getState().activeProject!.config, useLaunchpadStore.getState().activeProject!.name || "my-diamond")
+  expect(screen.getByLabelText("Compose command").textContent).toBe(command())
+  vi.mocked(compileDiamond).mockImplementationOnce(() => new Promise(() => {}))
+  await act(async () => {
+    useLaunchpadStore.getState().updateProject({ name: "My chosen diamond" })
+    useLaunchpadStore.getState().setConfig({ framework: "hardhat", toolbox: "viem", selectedLibraries: ["ERC165Facet"], selectedAccess: ["owner"] })
+  })
+  expect(screen.getByLabelText("Compose command").textContent).toBe(command())
+  expect(command()).toContain("--name My-chosen-diamond")
+  expect(command()).toContain("--framework hardhat --toolbox viem")
+  expect(screen.queryByText("424,242 gas")).toBeNull()
 })

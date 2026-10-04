@@ -12,10 +12,12 @@ saved configuration, catalog, generation and compiler pipeline.
   read-only source viewer, and the composition graph. Diamond and facet graph
   clicks open the matching source file; aggregate access nodes only highlight.
 - **Project** (`#/workspace/project`): Selectors / Storage in the middle and
-  static compiler gas estimates on the right. **Review project** switches here.
-  These are solc estimates for individual contracts, not RPC simulations,
-  transaction fees, or a combined Diamond deployment cost. Unbounded static
-  estimates are shown as unavailable rather than invented numbers.
+  two compact boxes on the right: Diamond creation gas and the corresponding
+  Compose CLI command with copy. **Review project** switches here. Only a finite
+  complete solc creation estimate for Diamond is shown; partial code-deposit
+  costs and facet/function estimates are not substituted. This is not an RPC
+  simulation or transaction-fee quote. Unbounded or missing estimates show a
+  short unavailable status. The command reuses the existing CLI generator.
 
 Builder's Configure pane offers base, ownership, roles, required facets and
 optional checklists. Changes update the current project live. Switching bases

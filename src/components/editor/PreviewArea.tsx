@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useLaunchpadStore } from "@/lib/state/store"
-import { resolveCatalogSelection, uniqueStrings } from "@/lib/compose-core"
+import { buildCliCommand, resolveCatalogSelection, uniqueStrings } from "@/lib/compose-core"
 import { planComposition } from "@/lib/compose-core"
 import type { CompositionPlan } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
@@ -591,7 +591,7 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
   )
 
   if (presentation === "workspace") {
-    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} projectData={<ProjectDataPanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} gasEstimate={<GasEstimatePanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} filePath={currentFile.path} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
+    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} projectData={<ProjectDataPanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} gasEstimate={<GasEstimatePanel cliCommand={buildCliCommand(config, activeProject?.name || "my-diamond")} currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} filePath={currentFile.path} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
   }
 
   return (
