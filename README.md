@@ -2,6 +2,24 @@
 
 Interactive smart contract project builder powered by Compose.
 
+## Workspace page
+
+The original Builder / Project presentation remains the default at `#/`.
+Open **Workspace** in the toolbar, or visit `#/workspace`, for a separate
+three-pane presentation: collapsible configuration / files, source / compiler
+inspection, and a live composition preview. Both pages use the same saved
+configuration, catalog, generation and compiler pipeline.
+
+The workspace preserves the existing 3D graph on WebGL-capable browsers and
+offers a selectable composition fallback when WebGL is unavailable. On smaller
+screens the preview moves below the source; the file/config sidebar becomes a
+collapsible overlay. This page does not add deployment or source editing.
+
+Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and
+`npm run compiler:check` to verify changes. Tests prepare the pinned compiler
+source assets automatically. The dependency-free graph probe tests use Node's
+TypeScript support (Node 22.18+ or 24 recommended for the test command).
+
 ## Features
 
 - **Project Builder**: Configure your smart contract project through an intuitive interface
@@ -69,6 +87,29 @@ to compile generated Solidity locally without deploying anything.
 ```bash
 npm run preview
 ```
+
+### Cloudflare Workers
+
+`wrangler.jsonc` targets the existing `compose-launchpad` Worker and serves
+Vite's `dist` directory. Its custom build runs `npm run build` before an upload,
+including the pinned browser compiler assets, so a separate dashboard build
+command is optional. The empty `previews` block enables branch previews without
+adding backend bindings or credentials. The app uses hash routes, so both `#/`
+and `#/workspace` load from the same static entry page.
+
+For the connected Git integration, use `npx wrangler deploy` for the production
+branch and `npx wrangler preview` for non-production branches. `npm run preview`
+is only Vite's local server. Keep the existing custom-domain configuration in
+Cloudflare; no domain routes or account identifiers are checked into this repo.
+
+To validate configuration and build assets without publishing:
+
+```bash
+npx wrangler@4.147.0 deploy --dry-run
+```
+
+See Cloudflare's [Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/)
+and [custom builds](https://developers.cloudflare.com/workers/wrangler/custom-builds/) documentation.
 
 ## Tech Stack
 
