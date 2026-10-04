@@ -22,6 +22,7 @@ export function WorkspaceLayout({ toolbar, explorer, source, projectData, gasEst
   const mode = useSyncExternalStore(subscribeToNavigation, getWorkspaceModeSnapshot, () => "builder")
   const builder = mode === "builder"
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const sidebarVisible = builder && sidebarOpen
   const [sidebarTab, setSidebarTab] = useState("config")
   const projectRegion = useRef<HTMLElement>(null)
   const focusReview = useRef(false)
@@ -45,7 +46,7 @@ export function WorkspaceLayout({ toolbar, explorer, source, projectData, gasEst
   return (
     <div className="workspace-page flex h-full min-h-0 flex-col bg-background">
       <div className="shrink-0">{toolbar}</div>
-      <div className="workspace-panes min-h-0 flex-1" data-sidebar-open={builder && sidebarOpen}>
+      <div className="workspace-panes min-h-0 flex-1" data-mode={mode} data-sidebar-open={sidebarVisible}>
         <nav className="workspace-activity flex flex-col items-center gap-2 border-r bg-sidebar py-2" aria-label="Workspace navigation">
           <Button variant="ghost" className="h-auto w-full flex-col gap-1 px-1 py-2 text-[10px]" onClick={() => navigateWorkspace("builder")} aria-pressed={builder}><Hammer className="size-4" />Builder</Button>
           <Button variant="ghost" className="h-auto w-full flex-col gap-1 px-1 py-2 text-[10px]" onClick={() => navigateWorkspace("project")} aria-pressed={!builder}><ShieldCheck className="size-4" />Project</Button>
@@ -54,7 +55,7 @@ export function WorkspaceLayout({ toolbar, explorer, source, projectData, gasEst
           </Button>}
         </nav>
 
-        <aside id="workspace-sidebar" hidden={!builder || !sidebarOpen} className="workspace-sidebar min-h-0 min-w-0 border-r bg-background" aria-label="Builder configuration and files">
+        <aside id="workspace-sidebar" hidden={!sidebarVisible} className="workspace-sidebar min-h-0 min-w-0 border-r bg-background" aria-label="Builder configuration and files">
           <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="h-full min-h-0 gap-0">
             <div className="workspace-pane-header border-b px-2">
               <TabsList className="grid w-full grid-cols-2">

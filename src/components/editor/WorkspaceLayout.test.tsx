@@ -40,8 +40,10 @@ it("Review project switches mode while retaining mounted Builder state and graph
 
 it("direct Project refresh and browser Back choose the correct mode", async () => {
   window.history.replaceState(null, "", "#/workspace/project")
-  renderWorkspace()
+  const { container } = renderWorkspace()
   expect(screen.getByRole("button", { name: "Project" }).getAttribute("aria-pressed")).toBe("true")
+  expect(container.querySelector(".workspace-panes")?.getAttribute("data-sidebar-open")).toBe("false")
+  expect(container.querySelector<HTMLElement>("#workspace-sidebar")?.hidden).toBe(true)
   fireEvent.click(screen.getByRole("button", { name: "Builder" }))
   expect(screen.getByRole("button", { name: "Graph diamond" })).toBeTruthy()
   await act(async () => { window.history.back(); await new Promise((resolve) => setTimeout(resolve, 20)) })
@@ -74,4 +76,27 @@ it("retains the shared header contract for both modes", () => {
   expect(container.querySelectorAll(".workspace-pane-header")).toHaveLength(5)
   expect(container.querySelector(".workspace-review .workspace-pane-header")).toBeTruthy()
   expect(container.querySelector(".workspace-graph .workspace-pane-header")).toBeTruthy()
+})
+
+it.each([true, false])("removes the Project sidebar track and restores Builder sidebar open=%s", (sidebarOpen) => {
+  const { container } = renderWorkspace()
+  const panes = container.querySelector(".workspace-panes")!
+  const sidebar = container.querySelector<HTMLElement>("#workspace-sidebar")!
+  if (!sidebarOpen) fireEvent.click(screen.getByRole("button", { name: "Collapse builder sidebar" }))
+
+  expect(panes.getAttribute("data-mode")).toBe("builder")
+  expect(panes.getAttribute("data-sidebar-open")).toBe(String(sidebarOpen))
+  expect(sidebar.hidden).toBe(!sidebarOpen)
+
+  fireEvent.click(screen.getByRole("button", { name: "Project" }))
+  expect(panes.getAttribute("data-mode")).toBe("project")
+  expect(panes.getAttribute("data-sidebar-open")).toBe("false")
+  expect(sidebar.hidden).toBe(true)
+  expect(screen.getByRole("region", { name: "Project gas estimate" }).classList.contains("workspace-graph")).toBe(true)
+
+  fireEvent.click(screen.getByRole("button", { name: "Builder" }))
+  expect(panes.getAttribute("data-mode")).toBe("builder")
+  expect(panes.getAttribute("data-sidebar-open")).toBe(String(sidebarOpen))
+  expect(sidebar.hidden).toBe(!sidebarOpen)
+  expect(screen.getByRole("region", { name: "Composition preview" }).classList.contains("workspace-graph")).toBe(true)
 })
