@@ -88,6 +88,29 @@ to compile generated Solidity locally without deploying anything.
 npm run preview
 ```
 
+### Cloudflare Workers
+
+`wrangler.jsonc` targets the existing `compose-launchpad` Worker and serves
+Vite's `dist` directory. Its custom build runs `npm run build` before an upload,
+including the pinned browser compiler assets, so a separate dashboard build
+command is optional. The empty `previews` block enables branch previews without
+adding backend bindings or credentials. The app uses hash routes, so both `#/`
+and `#/workspace` load from the same static entry page.
+
+For the connected Git integration, use `npx wrangler deploy` for the production
+branch and `npx wrangler preview` for non-production branches. `npm run preview`
+is only Vite's local server. Keep the existing custom-domain configuration in
+Cloudflare; no domain routes or account identifiers are checked into this repo.
+
+To validate configuration and build assets without publishing:
+
+```bash
+npx wrangler@4.147.0 deploy --dry-run
+```
+
+See Cloudflare's [Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/)
+and [custom builds](https://developers.cloudflare.com/workers/wrangler/custom-builds/) documentation.
+
 ## Tech Stack
 
 - **Vite + React 19 + TypeScript**
