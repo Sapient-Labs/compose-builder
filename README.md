@@ -10,6 +10,12 @@ three-pane presentation: collapsible configuration / files, source / compiler
 inspection, and a live composition preview. Both pages use the same saved
 configuration, catalog, generation and compiler pipeline.
 
+Workspace's Configure pane follows a compact diamond setup form: name, base,
+ownership, roles, required facets and optional checklists. Changes update the
+current project live. Switching bases clears base-specific options, keeps
+compatible libraries/access choices, and removes unavailable access extensions.
+Required facets remain read-only; Generate project opens the existing file review.
+
 The workspace preserves the existing 3D graph on WebGL-capable browsers and
 offers a selectable composition fallback when WebGL is unavailable. On smaller
 screens the preview moves below the source; the file/config sidebar becomes a

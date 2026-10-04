@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { WorkspaceLayout } from "./WorkspaceLayout"
 
-vi.mock("./ConfigPanel", () => ({ ConfigPanel: ({ onReview }: { onReview: () => void }) => <button onClick={onReview}>Generate project</button> }))
+vi.mock("./DiamondSetupPanel", () => ({ DiamondSetupPanel: ({ onReview }: { onReview: () => void }) => <button onClick={onReview}>Generate project</button> }))
 vi.mock("@/components/graph/DiamondGraph", () => ({ DiamondGraph: ({ enableWebGLFallback }: { enableWebGLFallback: boolean }) => <div>Graph fallback {String(enableWebGLFallback)}</div> }))
 afterEach(cleanup)
 

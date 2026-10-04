@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react"
 import { Code, Files, Network, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react"
-import { ConfigPanel } from "./ConfigPanel"
+import { DiamondSetupPanel } from "./DiamondSetupPanel"
 import { DiamondGraph } from "@/components/graph/DiamondGraph"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -53,7 +53,7 @@ export function WorkspaceLayout({ toolbar, explorer, source, inspection, filePat
                 <TabsTrigger value="files">Files</TabsTrigger>
               </TabsList>
             </div>
-            <TabsContent value="config" className="m-0 min-h-0 flex-1 overflow-hidden"><ConfigPanel onReview={review} /></TabsContent>
+            <TabsContent value="config" className="m-0 min-h-0 flex-1 overflow-hidden"><DiamondSetupPanel onReview={review} /></TabsContent>
             <TabsContent value="files" className="m-0 min-h-0 flex-1 overflow-hidden">{explorer(collapseOnSmallScreen)}</TabsContent>
           </Tabs>
         </aside>

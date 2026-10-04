@@ -69,3 +69,20 @@ it("keeps framework source options functional", async () => {
   await act(async () => useLaunchpadStore.getState().setConfig({ toolbox: "ethers" }))
   expect(screen.getByTestId("source").textContent).toContain('import { ethers } from "hardhat"')
 })
+
+it("drives current generated source and compiler inputs from the new inline form", async () => {
+  render(<PreviewArea presentation="workspace" />)
+  await screen.findByText("Compiled")
+  fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))
+  await waitFor(() => expect(vi.mocked(compileDiamond).mock.calls.at(-1)?.[1]?.some((x) => x.name === "CounterResetFacet")).toBe(true))
+  fireEvent.change(screen.getByRole("combobox", { name: "Base" }), { target: { value: "erc-20" } })
+  expect(screen.getByTestId("source").textContent).toContain("ERC20")
+  expect(useLaunchpadStore.getState().activeProject!.config.selectedExtensions).toEqual([])
+  await waitFor(() => {
+    const last = vi.mocked(compileDiamond).mock.calls.at(-1)
+    expect(last?.[0]).toContain("ERC20")
+    expect(last?.[1]?.some((x) => x.name === "CounterResetFacet")).toBe(false)
+  })
+  fireEvent.change(screen.getByRole("combobox", { name: "Ownership" }), { target: { value: "owner" } })
+  expect(screen.getByTestId("source").textContent).toContain("OwnerDataMod.setContractOwner")
+})
