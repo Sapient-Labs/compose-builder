@@ -1,0 +1,55 @@
+.workspace-pane-header {
+  display: flex;
+  align-items: center;
+  height: 45px;
+  min-height: 45px;
+  flex-shrink: 0;
+}
+.workspace-panes {
+  --workspace-activity-width: 68px;
+  --workspace-sidebar-width: 280px;
+  --workspace-right-width: 440px;
+  display: grid;
+  /* Both right panes stay compact; the middle pane receives all spare width. */
+  grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr) var(--workspace-right-width);
+  grid-template-areas: "activity middle right";
+  overflow: hidden;
+}
+.workspace-panes[data-mode="builder"][data-sidebar-open="true"] {
+  grid-template-columns: var(--workspace-activity-width) var(--workspace-sidebar-width) minmax(0, 1fr) var(--workspace-right-width);
+  grid-template-areas: "activity sidebar middle right";
+}
+.workspace-activity { grid-area: activity; }
+.workspace-sidebar { grid-area: sidebar; }
+.workspace-review { grid-area: middle; }
+.workspace-graph { grid-area: right; }
+.workspace-sidebar[hidden] { display: none; }
+.workspace-activity button[aria-pressed="true"] { color: var(--primary); background: var(--accent); }
+@media (max-width: 1199px) {
+  .workspace-panes {
+    --workspace-activity-width: 60px;
+    --workspace-sidebar-width: 260px;
+  }
+}
+@media (max-width: 999px) {
+  .workspace-panes {
+    grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr);
+    grid-template-areas: "activity middle" "activity right";
+    grid-template-rows: minmax(0, 3fr) minmax(180px, 2fr);
+  }
+  .workspace-panes[data-mode="builder"][data-sidebar-open="true"] {
+    grid-template-columns: var(--workspace-activity-width) var(--workspace-sidebar-width) minmax(0, 1fr);
+    grid-template-areas: "activity sidebar middle" "activity sidebar right";
+  }
+  .workspace-graph { border-left: 0; border-top: 1px solid var(--border); }
+}
+@media (max-width: 767px) {
+  .workspace-panes { position: relative; }
+  .workspace-panes[data-mode="builder"][data-sidebar-open="true"] {
+    grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr);
+    grid-template-areas: "activity middle" "activity right";
+  }
+  .workspace-sidebar { position: absolute; grid-area: auto; z-index: 20; inset: 0 auto 0 var(--workspace-activity-width); width: min(280px, calc(100% - var(--workspace-activity-width))); box-shadow: 8px 0 20px rgb(0 0 0 / 0.12); }
+}
+
+.workspace-page [hidden] { display: none !important; }

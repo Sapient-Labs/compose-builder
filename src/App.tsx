@@ -1,13 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { useLaunchpadStore } from "@/lib/state/store";
 import { loadBasesCatalog } from "@/lib/compose-core";
+import { getPageSnapshot, subscribeToNavigation } from "@/lib/navigation";
+import { PreviewArea } from "@/components/editor/PreviewArea";
 import { EditorLayout } from "@/components/editor/EditorLayout";
 import { EditorSidebar } from "@/components/editor/EditorSidebar";
 import { ContinueLocallyDialog } from "@/components/editor/ContinueLocallyDialog";
-import { BookOpen, Diamond, Moon, Sun } from "lucide-react";
+import { BookOpen, Diamond, Moon, Sun, PanelsTopLeft } from "lucide-react";
 
 function App() {
+  const page = useSyncExternalStore(subscribeToNavigation, getPageSnapshot, () => "classic");
   const { resolvedTheme, setTheme } = useTheme();
   const { catalog, setCatalog, isLoading, setLoading, error, setError } =
     useLaunchpadStore();
@@ -51,11 +54,15 @@ function App() {
 
   return (
     <div className="h-dvh bg-background flex overflow-hidden">
-      <EditorSidebar />
+      {page === "classic" && <EditorSidebar />}
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-11 border-b flex-shrink-0" aria-label="Application toolbar">
           <div className="h-full px-3 sm:px-4 flex items-center justify-end">
+            <nav aria-label="Page navigation" className="mr-auto flex items-center gap-1 text-xs">
+              <a href="#/" aria-label="Launchpad" aria-current={page === "classic" ? "page" : undefined} className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Diamond className="size-4 sm:hidden" /><span className="hidden sm:inline">Launchpad</span></a>
+              <a href="#/workspace" aria-label="Workspace" aria-current={page === "workspace" ? "page" : undefined} className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><PanelsTopLeft className="size-4 sm:hidden" /><span className="hidden sm:inline">Workspace</span></a>
+            </nav>
             <div className="flex items-center gap-2 origin-right">
               <a
                 href="https://compose.diamonds/docs"
@@ -80,7 +87,7 @@ function App() {
         </header>
 
         <main className="flex-1 overflow-hidden">
-          <EditorLayout />
+          {page === "workspace" ? <PreviewArea presentation="workspace" /> : <EditorLayout />}
         </main>
       </div>
     </div>

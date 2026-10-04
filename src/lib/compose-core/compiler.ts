@@ -1,5 +1,6 @@
 import { keccak256 } from "viem";
 import type { Hex } from "viem";
+import type { DeploymentArtifact, DeploymentSimulationInput } from "./deploymentSimulation";
 
 export type CompilerDiagnostic = {
   severity: "error" | "warning" | "info";
@@ -41,6 +42,47 @@ export type DiamondValidation = {
 export type DiamondCompileResult = {
   diagnostics: CompilerDiagnostic[];
   validation: DiamondValidation;
+  gasEstimates?: CompilerGasEstimates;
+  deploymentArtifacts?: CompilerDeploymentArtifacts;
+  deploymentArtifactsError?: string;
+};
+
+/** Only deployable targets and provenance are retained, never the raw solc output or AST. */
+export type CompilerDeploymentArtifacts = DeploymentSimulationInput & {
+  settingsFingerprint: Hex;
+  composeSourceVersion: string;
+  compilerBuild: string;
+  settings: typeof compilerSettings;
+};
+
+type CompilerSourceManifest = {
+  sources: Record<string, string>;
+  version?: number;
+  composePackage?: string;
+  compilerVersion?: string;
+  compilerAssetSha256?: string;
+};
+
+/** Raw solc estimates use decimal gas units or "infinite" for an unknown static bound. */
+export type GasEstimateValue = `${bigint}` | "infinite";
+
+export type ContractGasEstimates = {
+  contract: string;
+  source: string;
+  creation?: {
+    codeDepositCost?: GasEstimateValue;
+    executionCost?: GasEstimateValue;
+    totalCost?: GasEstimateValue;
+  };
+  external: Record<string, GasEstimateValue>;
+  internal: Record<string, GasEstimateValue>;
+};
+
+export type CompilerGasEstimates = {
+  compilerVersion: string;
+  optimizer: { enabled: boolean; runs: number };
+  evmVersion: string;
+  contracts: ContractGasEstimates[];
 };
 
 export const PINNED_SOLC_VERSION = "0.8.30";
@@ -56,13 +98,72 @@ const compilerSettings = {
   outputSelection: {
     "*": {
       "": ["ast"],
-      "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object", "evm.methodIdentifiers"],
+      "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object", "evm.methodIdentifiers", "evm.gasEstimates"],
     },
   },
 };
 
+function gasEstimateValue(value: unknown): GasEstimateValue | undefined {
+  return typeof value === "string" && (value === "infinite" || /^\d+$/.test(value))
+    ? value as GasEstimateValue
+    : undefined;
+}
+
+function gasEstimateMap(value: unknown): Record<string, GasEstimateValue> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([signature, raw]) => {
+      const estimate = gasEstimateValue(raw);
+      return estimate === undefined ? [] : [[signature, estimate]];
+    }),
+  );
+}
+
+function collectGasEstimates(
+  output: Record<string, any>,
+  facetInputs: CompileFacetInput[],
+): CompilerGasEstimates | undefined {
+  const targets = [
+    { name: "Diamond", path: "contracts/Diamond.sol" },
+    ...facetInputs,
+  ];
+  const contracts: ContractGasEstimates[] = [];
+  const visited = new Set<string>();
+  for (const { name, path } of targets) {
+    const key = `${path}:${name}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+    // Never attribute another contract's estimate to the requested contract.
+    const estimates = output.contracts?.[path]?.[name]?.evm?.gasEstimates;
+    if (!estimates || typeof estimates !== "object") continue;
+    const creation = {
+      codeDepositCost: gasEstimateValue(estimates.creation?.codeDepositCost),
+      executionCost: gasEstimateValue(estimates.creation?.executionCost),
+      totalCost: gasEstimateValue(estimates.creation?.totalCost),
+    };
+    const external = gasEstimateMap(estimates.external);
+    const internal = gasEstimateMap(estimates.internal);
+    const hasCreation = Object.values(creation).some((value) => value !== undefined);
+    if (!hasCreation && !Object.keys(external).length && !Object.keys(internal).length) continue;
+    contracts.push({
+      contract: name,
+      source: path,
+      creation: hasCreation ? creation : undefined,
+      external,
+      internal,
+    });
+  }
+  if (!contracts.length) return undefined;
+  return {
+    compilerVersion: PINNED_SOLC_VERSION,
+    optimizer: { ...compilerSettings.optimizer },
+    evmVersion: compilerSettings.evmVersion,
+    contracts,
+  };
+}
+
 function hexBytes(value: unknown) {
-  return typeof value === "string" && /^[0-9a-f]*$/i.test(value)
+  return typeof value === "string" && /^(?:[0-9a-f]{2})*$/i.test(value)
     ? value.length / 2
     : 0;
 }
@@ -277,13 +378,105 @@ function validateDiamondOutput(
   return {
     ok: messages.length === 0,
     messages,
-    creationHash: creation ? keccak256(`0x${creation}` as Hex) : undefined,
-    runtimeHash: runtime ? keccak256(`0x${runtime}` as Hex) : undefined,
+    creationHash: creationBytes ? keccak256(`0x${creation}` as Hex) : undefined,
+    runtimeHash: runtimeBytes ? keccak256(`0x${runtime}` as Hex) : undefined,
     creationBytes,
     runtimeBytes,
     selectors: selectorResult.selectors,
     storage,
     collisionCount: selectorResult.collisionCount,
+  };
+}
+
+
+/** Sort object keys recursively while preserving the deployment-sensitive order of arrays. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+function collectDeploymentArtifacts(
+  output: Record<string, any>,
+  facetInputs: CompileFacetInput[],
+  closure: Record<string, string>,
+  manifest: CompilerSourceManifest,
+  diagnostics: CompilerDiagnostic[],
+): Pick<DiamondCompileResult, "deploymentArtifacts" | "deploymentArtifactsError"> {
+  const unavailable = (reason: string) => ({ deploymentArtifactsError: reason });
+  if (diagnostics.some((diagnostic) => diagnostic.severity === "error"))
+    return unavailable("Resolve compiler errors before simulating deployment.");
+  if (!manifest.composePackage || !manifest.compilerVersion)
+    return unavailable("The compiler source-version metadata is unavailable.");
+
+  const artifacts: DeploymentArtifact[] = [];
+  const targets = [{ name: "Diamond", path: "contracts/Diamond.sol" }, ...facetInputs];
+  for (const [index, { name, path }] of targets.entries()) {
+    // An unrelated contract in the same source is never a valid substitute.
+    const contract = output.contracts?.[path]?.[name];
+    if (!contract)
+      return unavailable(`Deployment bytecode is unavailable for ${name} in ${path}.`);
+    const bytecode = contract.evm?.bytecode?.object;
+    if (typeof bytecode !== "string" || !/^(?:[0-9a-f]{2})+$/i.test(bytecode))
+      return unavailable(`${name} has missing, malformed, or unlinked creation bytecode.`);
+    if (!Array.isArray(contract.abi))
+      return unavailable(`Constructor information is unavailable for ${name}.`);
+    const constructors = contract.abi.filter((entry: { type?: string } | null) => entry?.type === "constructor");
+    if (constructors.length > 1)
+      return unavailable(`${name} has unsupported constructor information.`);
+    const constructor = constructors[0];
+    if (index === 0) {
+      if (!constructor || constructor.stateMutability !== "nonpayable" ||
+        !Array.isArray(constructor.inputs) || constructor.inputs.length !== 1 ||
+        constructor.inputs[0]?.type !== "address[]") {
+        return unavailable("Diamond must have one nonpayable address[] constructor for local deployment.");
+      }
+    } else if (constructor && (!Array.isArray(constructor.inputs) || constructor.inputs.length !== 0 ||
+      (constructor.stateMutability !== "nonpayable" && constructor.stateMutability !== "payable"))) {
+      return unavailable(`${name} requires an unsupported constructor; only zero-argument facets can be simulated.`);
+    }
+    artifacts.push({
+      name,
+      path,
+      bytecode: `0x${bytecode}`,
+      // The supported signatures do not require the rest of the contract ABI.
+      constructorInputs: index === 0 ? [{ type: "address[]", name: typeof constructor.inputs[0].name === "string" ? constructor.inputs[0].name : "" }] : [],
+    });
+  }
+
+  const [diamond, ...facets] = artifacts;
+  const provenance = {
+    format: "compose-local-deployment-v1",
+    compilerVersion: PINNED_SOLC_VERSION,
+    compilerBuild: manifest.compilerVersion,
+    compilerAssetSha256: manifest.compilerAssetSha256,
+    composeSourceVersion: manifest.composePackage,
+    sourceManifestVersion: manifest.version,
+    language: "Solidity",
+    settings: compilerSettings,
+    // Includes generated Diamond constructor/initializer code and every transitive import.
+    sources: closure,
+    selectedFacets: facetInputs.map(({ name, path }) => ({ name, path })),
+    diamond,
+    facets,
+  };
+  const settingsFingerprint = keccak256(new TextEncoder().encode(canonicalJson(provenance)));
+  return {
+    deploymentArtifacts: {
+      diamond,
+      facets,
+      compilerVersion: PINNED_SOLC_VERSION,
+      compilerBuild: manifest.compilerVersion,
+      composeSourceVersion: manifest.composePackage,
+      settings: structuredClone(compilerSettings),
+      settingsFingerprint,
+    },
   };
 }
 
@@ -297,9 +490,7 @@ export async function compileDiamond(
     { signal },
   );
   if (!manifestResponse.ok) throw new Error("The pinned Compose sources could not load.");
-  const manifest = (await manifestResponse.json()) as {
-    sources: Record<string, string>;
-  };
+  const manifest = (await manifestResponse.json()) as CompilerSourceManifest;
   const allSources = manifest.sources;
   const requested: Record<string, string> = { "contracts/Diamond.sol": source };
   for (const facet of facetInputs) {
@@ -347,7 +538,9 @@ export async function compileDiamond(
           sourceLocation: item.sourceLocation,
         }));
         const validation = validateDiamondOutput(output, normalizedFacets);
-        finish(undefined, { diagnostics, validation });
+        const gasEstimates = collectGasEstimates(output, normalizedFacets);
+        const deployment = collectDeploymentArtifacts(output, normalizedFacets, closure, manifest, diagnostics);
+        finish(undefined, { diagnostics, validation, gasEstimates, ...deployment });
       } catch (error) {
         finish(error instanceof Error ? error : new Error("Compilation failed."));
       }

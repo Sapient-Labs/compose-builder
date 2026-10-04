@@ -36,7 +36,7 @@ function humanizeFacetName(name: string): string {
     .trim()
 }
 
-export function ConfigPanel() {
+export function ConfigPanel({ onReview }: { onReview?: () => void }) {
   const { catalog, activeProject, setConfig, setViewMode } = useLaunchpadStore()
   const config = activeProject?.config
   const [facetSearch, setFacetSearch] = useState("")
@@ -497,7 +497,7 @@ export function ConfigPanel() {
         </div>
 
         <div className="absolute inset-x-0 bottom-0 border-t bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <Button size="sm" className="w-full h-8 text-xs" onClick={() => setViewMode("project")}>
+          <Button size="sm" className="w-full h-8 text-xs" onClick={onReview ?? (() => setViewMode("project"))}>
             Generate project
             <ArrowRight className="size-3.5" aria-hidden="true" />
           </Button>

@@ -1,0 +1,29 @@
+.workspace-code-viewer {
+  min-height: 100%;
+  min-width: 0;
+}
+
+/* Keep the source selectable without suggesting an editable insertion point.
+   Copy remains an ordinary, keyboard-accessible button outside the pre. */
+.workspace-code-viewer pre,
+.workspace-code-viewer code,
+.workspace-code-viewer code * {
+  cursor: default;
+  caret-color: transparent;
+  user-select: text;
+}
+
+.workspace-code-viewer pre::selection,
+.workspace-code-viewer code::selection,
+.workspace-code-viewer code *::selection {
+  background: #cbdcef;
+  color: #17293f;
+  text-shadow: none;
+}
+
+.workspace-code-viewer[data-code-theme="dark"] pre::selection,
+.workspace-code-viewer[data-code-theme="dark"] code::selection,
+.workspace-code-viewer[data-code-theme="dark"] code *::selection {
+  background: #305477;
+  color: #f4f5f7;
+}

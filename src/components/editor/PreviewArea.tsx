@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useLaunchpadStore } from "@/lib/state/store"
-import { resolveCatalogSelection, uniqueStrings } from "@/lib/compose-core"
+import { buildCliCommand, resolveCatalogSelection, uniqueStrings } from "@/lib/compose-core"
 import { planComposition } from "@/lib/compose-core"
 import type { CompositionPlan } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
 import type {
   CompileFacetInput,
   DiamondCompileResult,
-  SelectorEntry,
-  StorageEntry,
 } from "@/lib/compose-core/compiler"
-import type { Framework, HardhatToolbox } from "@/types/config"
+import type { DiamondConfig, Framework, HardhatToolbox } from "@/types/config"
 import type { BasesCatalog, CatalogSelection } from "@/types/catalog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -30,6 +28,12 @@ import {
   AlertTriangle,
   Network,
 } from "lucide-react"
+import { WorkspaceLayout } from "./WorkspaceLayout"
+import { getWorkspaceModeSnapshot, subscribeToNavigation } from "@/lib/navigation"
+import { useDeploymentEstimate } from "./useDeploymentEstimate"
+import { useProjectFileSelection } from "./workspaceViewState"
+import { WorkspaceSourceViewport } from "./WorkspaceSourceViewport"
+import { ProjectDataPanel, GasEstimatePanel, SelectorRow, StorageRow } from "./WorkspaceProjectReview"
 import { DiamondGraph } from "@/components/graph/DiamondGraph"
 
 type ProjectFile = {
@@ -103,15 +107,15 @@ async function loadFacetCompileInputs(
   return inputs
 }
 
-export function PreviewArea() {
+export function PreviewArea({ presentation = "classic" }: { presentation?: "classic" | "workspace" }) {
   const { catalog, activeProject, setConfig } = useLaunchpadStore()
   const config = activeProject?.config
   const [compileResult, setCompileResult] = useState<DiamondCompileResult>()
   const [compileError, setCompileError] = useState<string>()
   const [compiledSource, setCompiledSource] = useState("")
   const [failedSource, setFailedSource] = useState("")
-  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([])
-  const [selectedFile, setSelectedFile] = useState("src/Diamond.sol")
+  const [loadedFiles, setLoadedFiles] = useState<{ config: DiamondConfig; files: ProjectFile[] }>()
+  const [selectedFile, setSelectedFile] = useProjectFileSelection(activeProject?.id, presentation === "workspace")
 
   const selection = useMemo(() => {
     if (!catalog || !config) return null
@@ -147,6 +151,7 @@ export function PreviewArea() {
 
   useEffect(() => {
     if (!catalog || !selection || !plan || !config) return
+    let cancelled = false
     const entries = facetNames.flatMap((name) => {
       const entry = resolveFacetEntry(selection, name)
       return entry ? [{ name, entry }] : []
@@ -194,18 +199,23 @@ export function PreviewArea() {
             })
           }
         }
-        setProjectFiles(nextFiles)
-        setSelectedFile((current) =>
-          nextFiles.some((file) => file.path === current)
-            ? current
-            : "src/Diamond.sol",
-        )
+        if (cancelled) return
+        setLoadedFiles({ config, files: nextFiles })
+        if (presentation === "classic") {
+          setSelectedFile((current) =>
+            nextFiles.some((file) => file.path === current) ? current : "src/Diamond.sol",
+          )
+        }
       })
       .catch(() => {
-        setProjectFiles(nextFiles)
-        setSelectedFile("src/Diamond.sol")
+        if (cancelled) return
+        setLoadedFiles({ config, files: nextFiles })
+        if (presentation === "classic") setSelectedFile("src/Diamond.sol")
       })
-  }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript])
+    return () => { cancelled = true }
+  }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript, presentation, setSelectedFile])
+
+  const compileIdentity = JSON.stringify({ diamondCode, config })
 
   useEffect(() => {
     if (!catalog || !selection || !plan || !config || !diamondCode) return
@@ -218,26 +228,33 @@ export function PreviewArea() {
         const result = await compileDiamond(diamondCode, facetInputs, controller.signal)
         if (cancelled) return
         setCompileResult(result)
-        setCompiledSource(diamondCode)
+        setCompiledSource(compileIdentity)
         setCompileError(undefined)
       })
       .catch((error: unknown) => {
         if (cancelled || controller.signal.aborted) return
         setCompileError(error instanceof Error ? error.message : "Compilation failed.")
-        setFailedSource(diamondCode)
+        setFailedSource(compileIdentity)
       })
 
     return () => {
       cancelled = true
       controller.abort()
     }
-  }, [catalog, selection, plan, diamondCode, config])
+  }, [catalog, selection, plan, diamondCode, config, compileIdentity])
+
+  const workspaceMode = useSyncExternalStore(subscribeToNavigation, getWorkspaceModeSnapshot, () => "builder")
+  const currentCompileResult = compiledSource === compileIdentity ? compileResult : undefined
+  const currentCompileError = failedSource === compileIdentity ? compileError : undefined
+  const deploymentEstimate = useDeploymentEstimate(
+    currentCompileResult?.deploymentArtifacts,
+    presentation === "workspace" && workspaceMode === "project",
+    compileIdentity,
+  )
 
   if (!catalog || !selection || !plan || !config) return null
 
   const allFacets = facetNames
-  const currentCompileResult = compiledSource === diamondCode ? compileResult : undefined
-  const currentCompileError = failedSource === diamondCode ? compileError : undefined
   const compiling = !!catalog && !currentCompileResult && !currentCompileError
   const hasCompilerErrors = currentCompileResult?.diagnostics.some(
     (diagnostic) => diagnostic.severity === "error",
@@ -256,9 +273,23 @@ export function PreviewArea() {
     kind: "script",
     language: config.framework === "foundry" ? "solidity" : "typescript",
   }
-  const displayFiles = projectFiles.some((file) => file.path === deployFile.path)
-    ? projectFiles
-    : [...projectFiles, deployFile]
+  // Generated source always reflects the current config, even while facet files load.
+  const displayFiles: ProjectFile[] = [
+    { path: "src/Diamond.sol", source: diamondCode, kind: "generated", language: "solidity" },
+    deployFile,
+    ...(presentation === "workspace"
+      ? plan.facets.map(({ name }) => {
+          const path = `src/facets/${name}.sol`
+          return loadedFiles?.config === config
+            ? loadedFiles.files.find((file) => file.path === path) ?? {
+                path, source: "// Source unavailable. Try reloading the project.", kind: "facet" as const, language: "solidity" as const,
+              }
+            : { path, source: "// Loading source…", kind: "facet" as const, language: "solidity" as const }
+        })
+      : loadedFiles?.config === config
+        ? loadedFiles.files.filter((file) => file.kind === "facet" || file.kind === "module")
+        : []),
+  ]
   const currentFile = displayFiles.find((file) => file.path === selectedFile) ?? {
     path: "src/Diamond.sol",
     source: diamondCode,
@@ -297,8 +328,7 @@ export function PreviewArea() {
     <ShieldCheck className="mr-2 size-4" aria-hidden="true" />
   )
 
-  return (
-    <div className="h-full flex flex-col bg-background">
+  const projectToolbar = (
       <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3 sm:p-4">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="text-md font-semibold">Your Project</h1>
@@ -307,7 +337,7 @@ export function PreviewArea() {
             {allFacets.length} {allFacets.length === 1 ? "facet" : "facets"} selected
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={presentation === "workspace" ? "flex flex-wrap items-center gap-2" : "flex items-center gap-2"}>
           <Badge variant={isValidated ? "secondary" : "outline"} className="gap-1.5" aria-live="polite">
             {validationIcon}
             {compileStatus}
@@ -339,7 +369,7 @@ export function PreviewArea() {
           >
             <SelectTrigger
               size="sm"
-              className="h-7 gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold shadow-none"
+              className="h-7 gap-1 border px-2.5 py-0.5 text-xs font-semibold shadow-none"
               aria-label="Framework"
             >
               <SelectValue />
@@ -352,29 +382,9 @@ export function PreviewArea() {
           </Select>
         </div>
       </div>
-
-      <div className="flex-1 overflow-hidden">
-        <Tabs defaultValue="code" className="h-full flex flex-col">
-          <div className="border-b bg-muted/25 px-3 py-2">
-            <TabsList className="grid h-auto w-full grid-cols-3">
-              <TabsTrigger value="code" aria-label="Project files" title="Project files">
-                <Code aria-hidden="true" className="mr-2"/>
-                <span className="hidden sm:inline">Code</span>
-              </TabsTrigger>
-              <TabsTrigger value="graph" aria-label="Graph" title="Graph">
-                <Network aria-hidden="true" className="mr-2"/>
-                <span className="hidden sm:inline">Graph</span>
-              </TabsTrigger>
-              <TabsTrigger value="validation" className="group" aria-label="Validation" title="Validation">
-                {validationIcon}
-                <span className="hidden sm:inline">Inspect</span>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="code" className="flex-1 overflow-auto m-0">
-            <div className="flex h-full min-h-0">
-              <aside className="w-64 max-md:w-44 shrink-0 overflow-y-auto border-r p-3" aria-label="Project files">
+  )
+  const renderFileExplorer = (onSelect?: () => void) => (
+              <aside className={presentation === "workspace" ? "h-full min-w-0 overflow-y-auto p-3" : "w-64 max-md:w-44 shrink-0 overflow-y-auto border-r p-3"} aria-label="Project files">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="text-xs uppercase tracking-wider text-muted-foreground">Files</div>
                   <span className="text-xs tabular-nums text-muted-foreground" aria-label={`${displayFiles.length || 1} files`}>
@@ -395,7 +405,7 @@ export function PreviewArea() {
                               title={file.path}
                               aria-current={file.path === currentFile.path ? "page" : undefined}
                               className={`w-full rounded px-2 py-1 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${file.path === currentFile.path ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
-                              onClick={() => setSelectedFile(file.path)}
+                              onClick={() => { setSelectedFile(file.path); onSelect?.() }}
                             >
                               <span className="block truncate font-medium">{file.path.split("/").pop()}</span>
                             </button>
@@ -405,21 +415,18 @@ export function PreviewArea() {
                     ))}
                   </div>
               </aside>
+  )
+  const sourceViewer = presentation === "workspace" ? <WorkspaceSourceViewport projectId={activeProject?.id} filePath={currentFile.path} source={currentFile.source} language={currentFile.language} /> : (
               <div className="min-w-0 flex-1 p-4 h-full overflow-auto">
                 <CodeBlock
+                  presentation={presentation}
                   code={currentFile.source}
                   language={currentFile.language}
                   className="h-full"
                 />
               </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="graph" className="m-0 flex-1 overflow-hidden">
-            <DiamondGraph className="h-full" />
-          </TabsContent>
-
-          <TabsContent value="validation" className="flex-1 overflow-auto m-0">
+  )
+  const inspection = (
             <div className="p-4 space-y-4">
               <div className="rounded-lg border p-4">
                 <h3 className="font-semibold">
@@ -590,40 +597,52 @@ export function PreviewArea() {
                 </>
               )}
             </div>
+  )
+
+  if (presentation === "workspace") {
+    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} projectData={<ProjectDataPanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} gasEstimate={<GasEstimatePanel deploymentEstimate={deploymentEstimate} cliCommand={buildCliCommand(config, activeProject?.name || "my-diamond")} currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} filePath={currentFile.path} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-background">
+      {projectToolbar}
+
+      <div className="flex-1 overflow-hidden">
+        <Tabs defaultValue="code" className="h-full flex flex-col">
+          <div className="border-b bg-muted/25 px-3 py-2">
+            <TabsList className="grid h-auto w-full grid-cols-3">
+              <TabsTrigger value="code" aria-label="Project files" title="Project files">
+                <Code aria-hidden="true" className="mr-2"/>
+                <span className="hidden sm:inline">Code</span>
+              </TabsTrigger>
+              <TabsTrigger value="graph" aria-label="Graph" title="Graph">
+                <Network aria-hidden="true" className="mr-2"/>
+                <span className="hidden sm:inline">Graph</span>
+              </TabsTrigger>
+              <TabsTrigger value="validation" className="group" aria-label="Validation" title="Validation">
+                {validationIcon}
+                <span className="hidden sm:inline">Inspect</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="code" className="flex-1 overflow-auto m-0">
+            <div className="flex h-full min-h-0">
+              {renderFileExplorer()}
+              {sourceViewer}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="graph" className="m-0 flex-1 overflow-hidden">
+            <DiamondGraph className="h-full" />
+          </TabsContent>
+
+          <TabsContent value="validation" className="flex-1 overflow-auto m-0">
+            {inspection}
           </TabsContent>
         </Tabs>
       </div>
     </div>
-  )
-}
-
-function SelectorRow({ entry }: { entry: SelectorEntry }) {
-  return (
-    <tr
-      className={`border-b last:border-b-0 ${entry.collision ? "bg-destructive/10" : ""}`}
-    >
-      <td className="px-3 py-2 font-mono text-xs">{entry.selector}</td>
-      <td className="px-3 py-2">{entry.signature}</td>
-      <td className={`px-3 py-2 ${entry.collision ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-        {entry.facet}
-        {entry.collision && <span className="ml-2 text-xs">collision</span>}
-      </td>
-    </tr>
-  )
-}
-
-function StorageRow({ entry }: { entry: StorageEntry }) {
-  return (
-    <tr className="border-b last:border-b-0">
-      <td className="px-3 py-2 font-medium">{entry.label}</td>
-      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-        keccak256("{entry.label}")
-        <span className="block text-[10px] opacity-70">{entry.constant}</span>
-      </td>
-      <td className="px-3 py-2 text-muted-foreground">
-        {entry.facets.join(", ")}
-      </td>
-    </tr>
   )
 }
 

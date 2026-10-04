@@ -12,9 +12,17 @@
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run && node --test src/components/graph/webglSupport.test.mjs",
+    "pretest": "npm run compiler:prepare"
   },
   "dependencies": {
+    "@ethereumjs/block": "10.1.3",
+    "@ethereumjs/common": "10.1.3",
+    "@ethereumjs/statemanager": "10.1.3",
+    "@ethereumjs/tx": "10.1.3",
+    "@ethereumjs/util": "10.1.3",
+    "@ethereumjs/vm": "10.1.3",
     "@radix-ui/react-checkbox": "^1.3.11",
     "@radix-ui/react-collapsible": "^1.1.20",
     "@radix-ui/react-dialog": "^1.1.23",
@@ -51,13 +59,16 @@
   },
   "devDependencies": {
     "@perfect-abstractions/compose": "^0.0.6",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^30.1.1",
     "oxlint": "^1.81.0",
     "solc": "^0.8.30",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.3"
   }
 }
