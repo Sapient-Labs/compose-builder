@@ -41,6 +41,29 @@ export type DiamondValidation = {
 export type DiamondCompileResult = {
   diagnostics: CompilerDiagnostic[];
   validation: DiamondValidation;
+  gasEstimates?: CompilerGasEstimates;
+};
+
+/** Raw solc estimates use decimal gas units or "infinite" for an unknown static bound. */
+export type GasEstimateValue = `${bigint}` | "infinite";
+
+export type ContractGasEstimates = {
+  contract: string;
+  source: string;
+  creation?: {
+    codeDepositCost?: GasEstimateValue;
+    executionCost?: GasEstimateValue;
+    totalCost?: GasEstimateValue;
+  };
+  external: Record<string, GasEstimateValue>;
+  internal: Record<string, GasEstimateValue>;
+};
+
+export type CompilerGasEstimates = {
+  compilerVersion: string;
+  optimizer: { enabled: boolean; runs: number };
+  evmVersion: string;
+  contracts: ContractGasEstimates[];
 };
 
 export const PINNED_SOLC_VERSION = "0.8.30";
@@ -56,10 +79,69 @@ const compilerSettings = {
   outputSelection: {
     "*": {
       "": ["ast"],
-      "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object", "evm.methodIdentifiers"],
+      "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object", "evm.methodIdentifiers", "evm.gasEstimates"],
     },
   },
 };
+
+function gasEstimateValue(value: unknown): GasEstimateValue | undefined {
+  return typeof value === "string" && (value === "infinite" || /^\d+$/.test(value))
+    ? value as GasEstimateValue
+    : undefined;
+}
+
+function gasEstimateMap(value: unknown): Record<string, GasEstimateValue> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([signature, raw]) => {
+      const estimate = gasEstimateValue(raw);
+      return estimate === undefined ? [] : [[signature, estimate]];
+    }),
+  );
+}
+
+function collectGasEstimates(
+  output: Record<string, any>,
+  facetInputs: CompileFacetInput[],
+): CompilerGasEstimates | undefined {
+  const targets = [
+    { name: "Diamond", path: "contracts/Diamond.sol" },
+    ...facetInputs,
+  ];
+  const contracts: ContractGasEstimates[] = [];
+  const visited = new Set<string>();
+  for (const { name, path } of targets) {
+    const key = `${path}:${name}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+    // Never attribute another contract's estimate to the requested contract.
+    const estimates = output.contracts?.[path]?.[name]?.evm?.gasEstimates;
+    if (!estimates || typeof estimates !== "object") continue;
+    const creation = {
+      codeDepositCost: gasEstimateValue(estimates.creation?.codeDepositCost),
+      executionCost: gasEstimateValue(estimates.creation?.executionCost),
+      totalCost: gasEstimateValue(estimates.creation?.totalCost),
+    };
+    const external = gasEstimateMap(estimates.external);
+    const internal = gasEstimateMap(estimates.internal);
+    const hasCreation = Object.values(creation).some((value) => value !== undefined);
+    if (!hasCreation && !Object.keys(external).length && !Object.keys(internal).length) continue;
+    contracts.push({
+      contract: name,
+      source: path,
+      creation: hasCreation ? creation : undefined,
+      external,
+      internal,
+    });
+  }
+  if (!contracts.length) return undefined;
+  return {
+    compilerVersion: PINNED_SOLC_VERSION,
+    optimizer: { ...compilerSettings.optimizer },
+    evmVersion: compilerSettings.evmVersion,
+    contracts,
+  };
+}
 
 function hexBytes(value: unknown) {
   return typeof value === "string" && /^[0-9a-f]*$/i.test(value)
@@ -347,7 +429,8 @@ export async function compileDiamond(
           sourceLocation: item.sourceLocation,
         }));
         const validation = validateDiamondOutput(output, normalizedFacets);
-        finish(undefined, { diagnostics, validation });
+        const gasEstimates = collectGasEstimates(output, normalizedFacets);
+        finish(undefined, { diagnostics, validation, gasEstimates });
       } catch (error) {
         finish(error instanceof Error ? error : new Error("Compilation failed."));
       }

@@ -19,6 +19,8 @@ const localFetch = async (url: string | URL | Request) => {
 }
 
 beforeEach(async () => {
+  window.history.replaceState(null, "", "#/workspace")
+  window.sessionStorage.clear()
   vi.stubGlobal("fetch", vi.fn(localFetch))
   useLaunchpadStore.getState().reset()
   useLaunchpadStore.getState().setCatalog(await loadBasesCatalog())
@@ -32,13 +34,15 @@ it("uses the original source/compiler pipeline and opens actual selected facet f
   await screen.findByText("Compiled")
   expect(compileDiamond).toHaveBeenCalled()
   expect(screen.getByTestId("source").textContent).toContain("contract Diamond")
-  fireEvent.click(screen.getByRole("button", { name: "Generate project" }))
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }), { button: 0, ctrlKey: false })
   const file = await screen.findByRole("button", { name: "CounterDataFacet.sol" })
   fireEvent.click(file)
   await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
-  fireEvent.mouseDown(screen.getByRole("tab", { name: /Inspect/ }), { button: 0, ctrlKey: false })
-  expect(screen.getByText("Project passed local checks")).toBeTruthy()
-  expect(screen.getByText("Composition graph")).toBeTruthy()
+  fireEvent.click(screen.getByRole("button", { name: "Project" }))
+  expect(screen.getByRole("region", { name: "Project selectors and storage" })).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "Graph diamond" })).toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "Builder" }))
+  expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet")
 })
 
 it("updates generated source immediately and ignores obsolete file loads", async () => {
@@ -53,7 +57,7 @@ it("updates generated source immediately and ignores obsolete file loads", async
   render(<PreviewArea presentation="workspace" />)
   await act(async () => useLaunchpadStore.getState().setConfig({ baseKey: "erc-20" }))
   expect(screen.getByTestId("source").textContent).toContain("ERC20")
-  fireEvent.click(screen.getByRole("button", { name: "Show file explorer" }))
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }), { button: 0, ctrlKey: false })
   await waitFor(() => expect(screen.queryAllByRole("button", { name: /ERC20.*Facet.sol/ }).length).toBeGreaterThan(0))
   await act(async () => { releaseOld(await localFetch("/compiler/compose-sources.json")); await new Promise((resolve) => setTimeout(resolve, 20)) })
   expect(screen.queryByRole("button", { name: "CounterDataFacet.sol" })).toBeNull()
@@ -64,7 +68,7 @@ it("keeps framework source options functional", async () => {
   render(<PreviewArea presentation="workspace" />)
   await screen.findByText("Compiled")
   await act(async () => useLaunchpadStore.getState().setConfig({ framework: "hardhat", toolbox: "viem" }))
-  fireEvent.click(screen.getByRole("button", { name: "Show file explorer" }))
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }), { button: 0, ctrlKey: false })
   fireEvent.click(await screen.findByRole("button", { name: "deploy.ts" }))
   expect(screen.getByTestId("source").textContent).toContain('import { viem } from "hardhat"')
   await act(async () => useLaunchpadStore.getState().setConfig({ toolbox: "ethers" }))
@@ -105,7 +109,6 @@ it("invalidates inspection while changed facets compile even when Diamond.sol is
 it("graph source selection opens Code and selects the exact explorer file, including Diamond", async () => {
   render(<PreviewArea presentation="workspace" />)
   await screen.findByText("Compiled")
-  fireEvent.mouseDown(screen.getByRole("tab", { name: /Inspect/ }), { button: 0, ctrlKey: false })
   fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
   await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
   expect(screen.getByRole("button", { name: "CounterDataFacet.sol" }).getAttribute("aria-current")).toBe("page")
@@ -144,4 +147,41 @@ it("failed facet loading does not redirect a newer Diamond selection", async () 
   fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
   expect(screen.getByTestId("source").textContent).toContain("Source unavailable")
   expect(screen.getByRole("button", { name: "CounterDataFacet.sol" }).getAttribute("aria-current")).toBe("page")
+})
+
+
+it("Review project opens selectors and gas, then Builder keeps the selected source", async () => {
+  render(<PreviewArea presentation="workspace" />)
+  await screen.findByText("Compiled")
+  fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
+  await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Configure" }), { button: 0, ctrlKey: false })
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
+  expect(window.location.hash).toBe("#/workspace/project")
+  expect(screen.getByRole("tab", { name: /Selectors/ })).toBeTruthy()
+  expect(screen.getByRole("heading", { name: "Gas estimate" })).toBeTruthy()
+  fireEvent.click(screen.getByRole("button", { name: "Builder" }))
+  expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet")
+})
+
+it("Project never displays previous selectors or gas while a changed selection compiles", async () => {
+  const oldResult = {
+    diagnostics: [],
+    validation: { ok: true, messages: [], selectors: [{ selector: "0x12345678", signature: "oldFunction()", facet: "CounterDataFacet", collision: false }], storage: [], collisionCount: 0 },
+    gasEstimates: { compilerVersion: "0.8.30", optimizer: { enabled: true, runs: 200 }, evmVersion: "paris", contracts: [{ contract: "OldGasContract", source: "src/Diamond.sol", external: { "oldGasCall()": "424242" as const }, internal: {} }] },
+  }
+  vi.mocked(compileDiamond).mockResolvedValueOnce(oldResult)
+  render(<PreviewArea presentation="workspace" />)
+  await screen.findByText("Compiled")
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
+  expect(screen.getByText("oldFunction()")).toBeTruthy()
+  expect(screen.getByText("oldGasCall()")).toBeTruthy()
+  fireEvent.click(screen.getByRole("button", { name: "Builder" }))
+  vi.mocked(compileDiamond).mockImplementationOnce(() => new Promise(() => {}))
+  fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
+  expect(screen.queryByText("oldFunction()")).toBeNull()
+  expect(screen.queryByText("oldGasCall()")).toBeNull()
+  expect(screen.getByText("Compiling")).toBeTruthy()
+  expect(screen.queryByRole("table", { name: "Exported function selectors" })).toBeNull()
 })

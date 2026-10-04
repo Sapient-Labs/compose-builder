@@ -7,8 +7,6 @@ import { compileDiamond } from "@/lib/compose-core/compiler"
 import type {
   CompileFacetInput,
   DiamondCompileResult,
-  SelectorEntry,
-  StorageEntry,
 } from "@/lib/compose-core/compiler"
 import type { DiamondConfig, Framework, HardhatToolbox } from "@/types/config"
 import type { BasesCatalog, CatalogSelection } from "@/types/catalog"
@@ -31,6 +29,9 @@ import {
   Network,
 } from "lucide-react"
 import { WorkspaceLayout } from "./WorkspaceLayout"
+import { useProjectFileSelection } from "./workspaceViewState"
+import { WorkspaceSourceViewport } from "./WorkspaceSourceViewport"
+import { ProjectDataPanel, GasEstimatePanel, SelectorRow, StorageRow } from "./WorkspaceProjectReview"
 import { DiamondGraph } from "@/components/graph/DiamondGraph"
 
 type ProjectFile = {
@@ -112,7 +113,7 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
   const [compiledSource, setCompiledSource] = useState("")
   const [failedSource, setFailedSource] = useState("")
   const [loadedFiles, setLoadedFiles] = useState<{ config: DiamondConfig; files: ProjectFile[] }>()
-  const [selectedFile, setSelectedFile] = useState("src/Diamond.sol")
+  const [selectedFile, setSelectedFile] = useProjectFileSelection(activeProject?.id, presentation === "workspace")
 
   const selection = useMemo(() => {
     if (!catalog || !config) return null
@@ -406,8 +407,8 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
                   </div>
               </aside>
   )
-  const sourceViewer = (
-              <div className={presentation === "workspace" ? "min-w-0 flex-1 h-full overflow-auto" : "min-w-0 flex-1 p-4 h-full overflow-auto"}>
+  const sourceViewer = presentation === "workspace" ? <WorkspaceSourceViewport projectId={activeProject?.id} filePath={currentFile.path} source={currentFile.source} language={currentFile.language} /> : (
+              <div className="min-w-0 flex-1 p-4 h-full overflow-auto">
                 <CodeBlock
                   presentation={presentation}
                   code={currentFile.source}
@@ -590,7 +591,7 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
   )
 
   if (presentation === "workspace") {
-    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} inspection={inspection} filePath={currentFile.path} validationIcon={validationIcon} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
+    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} projectData={<ProjectDataPanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} gasEstimate={<GasEstimatePanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} filePath={currentFile.path} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
   }
 
   return (
@@ -633,36 +634,6 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
         </Tabs>
       </div>
     </div>
-  )
-}
-
-function SelectorRow({ entry }: { entry: SelectorEntry }) {
-  return (
-    <tr
-      className={`border-b last:border-b-0 ${entry.collision ? "bg-destructive/10" : ""}`}
-    >
-      <td className="px-3 py-2 font-mono text-xs">{entry.selector}</td>
-      <td className="px-3 py-2">{entry.signature}</td>
-      <td className={`px-3 py-2 ${entry.collision ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-        {entry.facet}
-        {entry.collision && <span className="ml-2 text-xs">collision</span>}
-      </td>
-    </tr>
-  )
-}
-
-function StorageRow({ entry }: { entry: StorageEntry }) {
-  return (
-    <tr className="border-b last:border-b-0">
-      <td className="px-3 py-2 font-medium">{entry.label}</td>
-      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-        keccak256("{entry.label}")
-        <span className="block text-[10px] opacity-70">{entry.constant}</span>
-      </td>
-      <td className="px-3 py-2 text-muted-foreground">
-        {entry.facets.join(", ")}
-      </td>
-    </tr>
   )
 }
 

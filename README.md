@@ -5,21 +5,33 @@ Interactive smart contract project builder powered by Compose.
 ## Workspace page
 
 The original Builder / Project presentation remains the default at `#/`.
-Open **Workspace** in the toolbar, or visit `#/workspace`, for a separate
-three-pane presentation: collapsible configuration / files, source / compiler
-inspection, and a live composition preview. Both pages use the same saved
-configuration, catalog, generation and compiler pipeline.
+Open **Workspace** in the toolbar for a separate presentation using the same
+saved configuration, catalog, generation and compiler pipeline.
 
-Workspace's Configure pane follows a compact diamond setup form: name, base,
-ownership, roles, required facets and optional checklists. Changes update the
-current project live. Switching bases clears base-specific options, keeps
-compatible libraries/access choices, and removes unavailable access extensions.
-Required facets remain read-only; Generate project opens the existing file review.
+- **Builder** (`#/workspace`): subordinate Configure / Files controls, a static
+  read-only source viewer, and the composition graph. Diamond and facet graph
+  clicks open the matching source file; aggregate access nodes only highlight.
+- **Project** (`#/workspace/project`): Selectors / Storage in the middle and
+  static compiler gas estimates on the right. **Review project** switches here.
+  These are solc estimates for individual contracts, not RPC simulations,
+  transaction fees, or a combined Diamond deployment cost. Unbounded static
+  estimates are shown as unavailable rather than invented numbers.
+
+Builder's Configure pane offers base, ownership, roles, required facets and
+optional checklists. Changes update the current project live. Switching bases
+clears base-specific options, keeps compatible libraries/access choices, and
+removes unavailable access extensions. Required facets remain read-only.
+
+Mode navigation supports browser Back and direct refresh. Switching modes keeps
+the source and graph mounted; source selection and file scroll positions are
+retained in this browser tab when storage is available. Project results are
+invalidated immediately when the composition changes and recomputed locally.
 
 The workspace preserves the existing 3D graph on WebGL-capable browsers and
 offers a selectable composition fallback when WebGL is unavailable. On smaller
-screens the preview moves below the source; the file/config sidebar becomes a
-collapsible overlay. This page does not add deployment or source editing.
+screens the right pane moves below the middle pane; Builder's file/config
+sidebar becomes a collapsible overlay. Source is selectable and copyable, with
+no editing caret. This page does not add deployment or source editing.
 
 Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and
 `npm run compiler:check` to verify changes. Tests prepare the pinned compiler

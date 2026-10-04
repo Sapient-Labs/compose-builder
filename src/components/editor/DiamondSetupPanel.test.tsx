@@ -65,7 +65,7 @@ it("preserves the existing project name without exposing a name field or creatin
   render(<DiamondSetupPanel onReview={onReview} />)
   const id = useLaunchpadStore.getState().activeProject!.id
   expect(screen.queryByRole("textbox", { name: "Diamond name" })).toBeNull()
-  fireEvent.click(screen.getByRole("button", { name: "Generate project" }))
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
   expect(onReview).toHaveBeenCalledOnce()
   const workspace = useLaunchpadStore.getState().workspace
   expect(workspace.projects).toHaveLength(1)
@@ -85,6 +85,6 @@ it("omits informational summaries for blank and configured diamonds without chan
   expect(screen.queryByText(/Review .*initializers? and sample values/)).toBeNull()
   expect(screen.queryByText(/Role access needs admin/)).toBeNull()
   expect(screen.queryByText(/facets? in this diamond/)).toBeNull()
-  fireEvent.click(screen.getByRole("button", { name: "Generate project" }))
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
   expect(onReview).toHaveBeenCalledOnce()
 })

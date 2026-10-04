@@ -184,7 +184,7 @@ export function DiamondSetupPanel({ onReview }: { onReview?: () => void }) {
       <footer className="shrink-0 space-y-2 border-t bg-background px-3 py-3">
         {(error || preview.error) && <p className="break-words text-xs text-destructive" role="alert">{error || preview.error}</p>}
         <Button size="sm" className="h-8 w-full text-xs" onClick={review} disabled={!plan}>
-          Generate project
+          Review project
           <ArrowRight className="size-3.5" aria-hidden="true" />
         </Button>
       </footer>

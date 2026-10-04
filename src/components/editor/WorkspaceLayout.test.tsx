@@ -1,51 +1,77 @@
-import { afterEach, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { WorkspaceLayout } from "./WorkspaceLayout"
 
-vi.mock("./DiamondSetupPanel", () => ({ DiamondSetupPanel: ({ onReview }: { onReview: () => void }) => <button onClick={onReview}>Generate project</button> }))
-vi.mock("@/components/graph/DiamondGraph", () => ({ DiamondGraph: ({ enableWebGLFallback }: { enableWebGLFallback: boolean }) => <div>Graph fallback {String(enableWebGLFallback)}</div> }))
-afterEach(cleanup)
+vi.mock("./DiamondSetupPanel", () => ({ DiamondSetupPanel: ({ onReview }: { onReview: () => void }) => <button onClick={onReview}>Review project</button> }))
+vi.mock("@/components/graph/DiamondGraph", () => ({ DiamondGraph: ({ onSourceSelect }: { onSourceSelect: (path: string) => void }) => <button onClick={() => onSourceSelect("src/Diamond.sol")}>Graph diamond</button> }))
+beforeEach(() => window.history.replaceState(null, "", "#/workspace"))
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
-const renderWorkspace = () => render(<WorkspaceLayout toolbar={<span>Project toolbar</span>} explorer={(onSelect) => <button onClick={onSelect}>Diamond.sol</button>} source={<pre>contract Diamond</pre>} inspection={<p>Compiler diagnostics</p>} filePath="src/Diamond.sol" validationIcon={<span>Compiled</span>} />)
+const renderWorkspace = (onSourceSelect = vi.fn()) => render(<WorkspaceLayout toolbar={<span>Project toolbar</span>} explorer={(onSelect) => <button onClick={onSelect}>Diamond.sol</button>} source={<pre>contract Diamond</pre>} projectData={<div className="workspace-pane-header">Selectors / Storage</div>} gasEstimate={<div className="workspace-pane-header">Gas estimate</div>} filePath="src/Diamond.sol" onSourceSelect={onSourceSelect} />)
 
-it("shows source and graph simultaneously, with a reversible sidebar", () => {
+it("uses Builder and Project as primary navigation, with subordinate Configure and Files", () => {
   renderWorkspace()
-  expect(screen.getByText("contract Diamond")).toBeTruthy()
-  expect(screen.getByText("Graph fallback true")).toBeTruthy()
-  fireEvent.click(screen.getByRole("button", { name: "Collapse workspace sidebar" }))
-  expect(screen.queryByRole("button", { name: "Generate project" })).toBeNull()
-  fireEvent.click(screen.getByRole("button", { name: "Show file explorer" }))
-  expect(screen.getByRole("button", { name: "Diamond.sol" })).toBeTruthy()
-  fireEvent.click(screen.getByRole("button", { name: "Show configuration" }))
-  expect(screen.getByRole("button", { name: "Generate project" })).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Builder" }).getAttribute("aria-pressed")).toBe("true")
+  expect(screen.getByRole("button", { name: "Project" })).toBeTruthy()
+  expect(screen.getByRole("tab", { name: "Configure" })).toBeTruthy()
+  expect(screen.getByRole("tab", { name: "Files" })).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "Show file explorer" })).toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "Collapse builder sidebar" }))
+  expect(screen.queryByRole("button", { name: "Review project" })).toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "Expand builder sidebar" }))
+  expect(screen.getByRole("button", { name: "Review project" })).toBeTruthy()
 })
 
-it("opens generated files and code when reviewing, without hiding the graph", () => {
-  renderWorkspace()
-  fireEvent.mouseDown(screen.getByRole("tab", { name: /Inspect/ }), { button: 0, ctrlKey: false })
-  expect(screen.getByText("Compiler diagnostics")).toBeTruthy()
-  fireEvent.click(screen.getByRole("button", { name: "Generate project" }))
-  expect(screen.getByText("contract Diamond")).toBeTruthy()
-  expect(screen.getByRole("button", { name: "Diamond.sol" })).toBeTruthy()
-  expect(screen.getByText("Graph fallback true")).toBeTruthy()
-  expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Code" }))
+it("Review project switches mode while retaining mounted Builder state and graph", () => {
+  const { container } = renderWorkspace()
+  const source = container.querySelector("pre")
+  source!.parentElement!.scrollTop = 80
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
+  expect(window.location.hash).toBe("#/workspace/project")
+  expect(screen.queryByRole("region", { name: "Source review" })).toBeNull()
+  expect(screen.getByRole("region", { name: "Project selectors and storage" })).toBeTruthy()
+  expect(screen.getByRole("region", { name: "Project gas estimate" })).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "Graph diamond" })).toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "Builder" }))
+  expect(container.querySelector("pre")).toBe(source)
+  expect(source!.parentElement!.scrollTop).toBe(80)
+  expect(screen.getByRole("button", { name: "Graph diamond" })).toBeTruthy()
 })
 
-it("dismisses the mobile overlay after reviewing or selecting a file", () => {
+it("direct Project refresh and browser Back choose the correct mode", async () => {
+  window.history.replaceState(null, "", "#/workspace/project")
+  renderWorkspace()
+  expect(screen.getByRole("button", { name: "Project" }).getAttribute("aria-pressed")).toBe("true")
+  fireEvent.click(screen.getByRole("button", { name: "Builder" }))
+  expect(screen.getByRole("button", { name: "Graph diamond" })).toBeTruthy()
+  await act(async () => { window.history.back(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  await waitFor(() => expect(screen.getByRole("button", { name: "Project" }).getAttribute("aria-pressed")).toBe("true"))
+})
+
+it("graph source selection switches the subordinate file tab without changing mode", () => {
+  const select = vi.fn()
+  renderWorkspace(select)
+  fireEvent.click(screen.getByRole("button", { name: "Graph diamond" }))
+  expect(select).toHaveBeenCalledWith("src/Diamond.sol")
+  expect(screen.getByRole("button", { name: "Diamond.sol" })).toBeTruthy()
+  expect(window.location.hash).toBe("#/workspace")
+})
+
+it("dismisses the mobile Builder overlay after review or file selection", () => {
   vi.stubGlobal("matchMedia", () => ({ matches: true }))
   renderWorkspace()
-  fireEvent.click(screen.getByRole("button", { name: "Generate project" }))
-  expect(screen.getByRole("button", { name: "Expand workspace sidebar" })).toBeTruthy()
-  fireEvent.click(screen.getByRole("button", { name: "Show file explorer" }))
+  fireEvent.click(screen.getByRole("button", { name: "Review project" }))
+  fireEvent.click(screen.getByRole("button", { name: "Builder" }))
+  expect(screen.getByRole("button", { name: "Expand builder sidebar" })).toBeTruthy()
+  fireEvent.click(screen.getByRole("button", { name: "Expand builder sidebar" }))
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }), { button: 0, ctrlKey: false })
   fireEvent.click(screen.getByRole("button", { name: "Diamond.sol" }))
-  expect(screen.getByRole("button", { name: "Expand workspace sidebar" })).toBeTruthy()
-  vi.unstubAllGlobals()
+  expect(screen.getByRole("button", { name: "Expand builder sidebar" })).toBeTruthy()
 })
 
-it("uses one header row contract for editor, graph, and sidebar", () => {
+it("retains the shared header contract for both modes", () => {
   const { container } = renderWorkspace()
-  const headers = container.querySelectorAll(".workspace-pane-header")
-  expect(headers).toHaveLength(3)
+  expect(container.querySelectorAll(".workspace-pane-header")).toHaveLength(5)
   expect(container.querySelector(".workspace-review .workspace-pane-header")).toBeTruthy()
   expect(container.querySelector(".workspace-graph .workspace-pane-header")).toBeTruthy()
 })
