@@ -7,10 +7,22 @@ import { PreviewArea } from "./PreviewArea"
 import { useLaunchpadStore } from "@/lib/state/store"
 import { buildCliCommand, loadBasesCatalog } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
+import { simulateDiamondDeployment } from "@/lib/compose-core/deploymentSimulation"
 
 vi.mock("@/components/ui/code-block", () => ({ CodeBlock: ({ code, language }: { code: string; language?: string }) => <pre data-testid={language === "bash" ? "cli-command" : "source"}>{code}</pre> }))
 vi.mock("@/components/graph/DiamondGraph", () => ({ DiamondGraph: ({ onSourceSelect }: { onSourceSelect?: (path: string) => void }) => <div>Composition graph<button onClick={() => onSourceSelect?.("src/Diamond.sol")}>Graph diamond</button><button onClick={() => onSourceSelect?.("src/facets/CounterDataFacet.sol")}>Graph counter data</button><button onClick={() => onSourceSelect?.("src/facets/CounterIncrementFacet.sol")}>Graph counter increment</button></div> }))
 vi.mock("@/lib/compose-core/compiler", () => ({ compileDiamond: vi.fn(async () => ({ diagnostics: [], validation: { ok: true, messages: [], selectors: [], storage: [], collisionCount: 0 } })) }))
+
+vi.mock("@/lib/compose-core/deploymentSimulation", () => ({ simulateDiamondDeployment: vi.fn() }))
+const deploymentArtifacts = {
+  compilerVersion: "0.8.30",
+  settingsFingerprint: (`0x${"1".repeat(64)}`) as `0x${string}`,
+  compilerBuild: "0.8.30+commit.73712a01",
+  composeSourceVersion: "@perfect-abstractions/compose@0.0.6",
+  settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: "paris", metadata: { bytecodeHash: "ipfs", appendCBOR: true, useLiteralContent: true }, outputSelection: { "*": { "": ["ast"], "*": ["abi", "evm.bytecode.object"] } } },
+  diamond: { name: "Diamond", path: "contracts/Diamond.sol", bytecode: "6000", constructorInputs: [{ name: "_facets", type: "address[]" }] },
+  facets: [{ name: "DiamondInspectFacet", path: "inspect.sol", bytecode: "6000", constructorInputs: [] }],
+}
 
 const localFetch = async (url: string | URL | Request) => {
   const name = String(url).replace(/^\//, "")
@@ -21,6 +33,10 @@ const localFetch = async (url: string | URL | Request) => {
 beforeEach(async () => {
   window.history.replaceState(null, "", "#/workspace")
   window.sessionStorage.clear()
+  vi.mocked(simulateDiamondDeployment).mockReset().mockImplementation(async (input) => ({
+    totalGasSpent: "424242", intrinsicGas: "53000", executionGasUsed: "371242", gasRefund: "0",
+    facetCount: input.facets.length, fork: "paris", compilerVersion: input.compilerVersion, settingsFingerprint: input.settingsFingerprint,
+  }))
   vi.stubGlobal("fetch", vi.fn(localFetch))
   useLaunchpadStore.getState().reset()
   useLaunchpadStore.getState().setCatalog(await loadBasesCatalog())
@@ -166,6 +182,7 @@ it("Review project opens selectors and gas, then Builder keeps the selected sour
 
 it("Project never displays previous selectors or gas while a changed selection compiles", async () => {
   const oldResult = {
+    deploymentArtifacts,
     diagnostics: [],
     validation: { ok: true, messages: [], selectors: [{ selector: "0x12345678", signature: "oldFunction()", facet: "CounterDataFacet", collision: false }], storage: [], collisionCount: 0 },
     gasEstimates: { compilerVersion: "0.8.30", optimizer: { enabled: true, runs: 200 }, evmVersion: "paris", contracts: [{ contract: "Diamond", source: "contracts/Diamond.sol", creation: { totalCost: "424242" as const }, external: {}, internal: {} }] },
@@ -175,7 +192,8 @@ it("Project never displays previous selectors or gas while a changed selection c
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("button", { name: "Review project" }))
   expect(screen.getByText("oldFunction()")).toBeTruthy()
-  expect(screen.getByText("424,242 gas")).toBeTruthy()
+  expect(simulateDiamondDeployment).toHaveBeenCalledOnce()
+  await screen.findByText("424,242 gas")
   fireEvent.click(screen.getByRole("button", { name: "Builder" }))
   vi.mocked(compileDiamond).mockImplementationOnce(() => new Promise(() => {}))
   fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))

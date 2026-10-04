@@ -13,11 +13,14 @@ saved configuration, catalog, generation and compiler pipeline.
   clicks open the matching source file; aggregate access nodes only highlight.
 - **Project** (`#/workspace/project`): Selectors / Storage in the middle and
   two compact boxes on the right: Diamond creation gas and the corresponding
-  Compose CLI command with copy. **Review project** switches here. Only a finite
-  complete solc creation estimate for Diamond is shown; partial code-deposit
-  costs and facet/function estimates are not substituted. This is not an RPC
-  simulation or transaction-fee quote. Unbounded or missing estimates show a
-  short unavailable status. The command reuses the existing CLI generator.
+  Compose CLI command with copy. **Review project** switches here. The gas number comes from executing the current compiled Diamond in a
+  disposable browser-local Paris EVM. Selected facets are deployed into fresh
+  temporary state first; only the Diamond transaction is counted (intrinsic
+  gas, constructor execution, runtime code deposit, and applied refunds).
+  Facet deployment costs are excluded. Current sample initialization and
+  deterministic addresses are used; this is not a chain quote, transaction fee,
+  or recommended gas limit. Failed or unsupported simulations show unavailable.
+  The command reuses the existing CLI generator.
 
 Builder's Configure pane offers base, ownership, roles, required facets and
 optional checklists. Changes update the current project live. Switching bases
@@ -165,3 +168,16 @@ src/
 ## License
 
 MIT
+
+### Local deployment simulation
+
+Simulation starts only in Workspace Project review after successful compilation.
+EthereumJS packages are pinned to 10.1.3 and bundled into a separate module worker;
+there is no RPC, wallet connection, backend, broadcast, or persisted EVM state.
+The existing pinned solc/source integrity checks remain in place. A fingerprint
+binds all source content, settings, compiler/source provenance, selected artifact
+order and bytecode. Config changes and navigation abort obsolete work.
+Each job is capped at 30 seconds and each temporary transaction at 30M gas;
+missing artifacts, unsupported constructors, unlinked bytecode, reverts and
+invalid results fail closed. Browser integration is checked on the existing
+Cloudflare branch preview before promoting a simulation change to main.

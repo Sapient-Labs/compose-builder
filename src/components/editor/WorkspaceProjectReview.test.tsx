@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
-import type { DiamondCompileResult, GasEstimateValue } from "@/lib/compose-core/compiler"
+import type { DiamondCompileResult } from "@/lib/compose-core/compiler"
 import { GasEstimatePanel, ProjectDataPanel } from "./WorkspaceProjectReview"
 
 const result: DiamondCompileResult = {
@@ -84,11 +84,11 @@ describe("Project data panel", () => {
 })
 
 const cliCommand = 'npx @perfect-abstractions/compose init my-diamond --base counter --owner --framework foundry'
-const diamond = result.gasEstimates!.contracts[0]
-const withTotal = (totalCost: GasEstimateValue | undefined): DiamondCompileResult => ({
-  ...result,
-  gasEstimates: { ...result.gasEstimates!, contracts: [{ ...diamond, creation: { ...diamond.creation, totalCost } }] },
-})
+const simulated = {
+  totalGasSpent: "424242" as const, intrinsicGas: "53000" as const, executionGasUsed: "371242" as const,
+  gasRefund: "0" as const, facetCount: 3, fork: "paris" as const, compilerVersion: "0.8.30",
+  settingsFingerprint: "0x" + "1".repeat(64),
+}
 const gasBox = () => within(screen.getByRole("region", { name: "Diamond deployment gas" }))
 const commandBox = () => within(screen.getByRole("region", { name: "Compose CLI command" }))
 
@@ -116,78 +116,49 @@ describe("Gas estimate panel", () => {
     expect(code.parentElement!.classList.contains("[overflow-wrap:anywhere]")).toBe(true)
   })
 
-  it("uses only the exact Diamond compiler source and creation total, preserving integer precision", () => {
-    const exact: DiamondCompileResult = {
-      ...result,
-      gasEstimates: { ...result.gasEstimates!, contracts: [
-        { ...diamond, source: "facets/Diamond.sol", creation: { totalCost: "111" } },
-        { ...diamond, contract: "OtherDiamond", creation: { totalCost: "222" } },
-        { ...diamond, creation: { ...diamond.creation, totalCost: "9007199254740993" } },
-        { ...diamond, contract: "CounterFacet", source: "facets/CounterFacet.sol", creation: { totalCost: "333" } },
-      ] },
-    }
-    render(<GasEstimatePanel currentCompileResult={exact} compiling={false} cliCommand={cliCommand} />)
-    expect(screen.getByText("9,007,199,254,740,993 gas")).toBeTruthy()
-    expect(screen.getByText(/Static solc creation estimate/)).toBeTruthy()
-    expect(screen.queryByText(/111 gas|222 gas|333 gas|420,000 gas|0 gas/)).toBeNull()
-    expect(screen.queryByText(/Code deposit|External functions|Internal functions|version\(\)|CounterFacet/)).toBeNull()
-    expect(screen.queryByText(/optimizer|EVM paris/)).toBeNull()
-  })
-
-  it("accepts an explicit zero total without inventing a value", () => {
-    render(<GasEstimatePanel currentCompileResult={withTotal("0")} compiling={false} cliCommand={cliCommand} />)
-    expect(screen.getByText("0 gas")).toBeTruthy()
-  })
-
-  it("reports infinite creation cost honestly without substituting code-deposit gas", () => {
-    render(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} />)
-    expect(gasBox().getByRole("status").textContent).toContain("Not statically estimable")
-    expect(screen.queryByText("420,000 gas")).toBeNull()
-    expect(screen.queryByText(/Static solc creation estimate/)).toBeNull()
-    expect(screen.getByLabelText("Compose command").textContent?.replace(/\n  /g, " ")).toBe(cliCommand)
-  })
-
-  it.each([
-    ["estimates are missing", { ...result, gasEstimates: undefined }],
-    ["no contracts are returned", { ...result, gasEstimates: { ...result.gasEstimates!, contracts: [] } }],
-    ["creation is missing", { ...result, gasEstimates: { ...result.gasEstimates!, contracts: [{ ...diamond, creation: undefined }] } }],
-    ["only code deposit is returned", withTotal(undefined)],
-    ["Diamond has the wrong source", { ...result, gasEstimates: { ...result.gasEstimates!, contracts: [{ ...diamond, source: "src/Diamond.sol", creation: { totalCost: "444" as const } }] } }],
-    ["the source has another contract", { ...result, gasEstimates: { ...result.gasEstimates!, contracts: [{ ...diamond, contract: "DiamondFacet", creation: { totalCost: "444" as const } }] } }],
-  ])("shows unavailable when %s", (_label, currentCompileResult) => {
-    render(<GasEstimatePanel currentCompileResult={currentCompileResult} compiling={false} cliCommand={cliCommand} />)
-    expect(gasBox().getByRole("status").textContent).toContain("Gas estimate unavailable")
-    expect(screen.queryByText(/\d[\d,]* gas/)).toBeNull()
-    expect(screen.getByLabelText("Compose command").textContent?.replace(/\n  /g, " ")).toBe(cliCommand)
-  })
-
-  it.each(["", "-5", "NaN", "Infinity", "1.5", "0x10", "123 gas", 123, null])("rejects malformed total %s", (total) => {
-    render(<GasEstimatePanel currentCompileResult={withTotal(total as GasEstimateValue)} compiling={false} cliCommand={cliCommand} />)
-    expect(gasBox().getByRole("status").textContent).toContain("Gas estimate unavailable")
-    expect(screen.queryByText("420,000 gas")).toBeNull()
-  })
-
-  it("hides stale totals while compiling, after errors, and when the current result is invalidated", () => {
-    const finiteResult = withTotal("424242")
-    const { rerender } = render(<GasEstimatePanel currentCompileResult={finiteResult} compiling={false} cliCommand={cliCommand} />)
+  it("uses actual simulated transaction gas, never the static partial or infinite estimates", () => {
+    render(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} deploymentEstimate={{ status: "ready", result: simulated }} />)
     expect(screen.getByText("424,242 gas")).toBeTruthy()
-    rerender(<GasEstimatePanel currentCompileResult={finiteResult} compiling cliCommand={cliCommand} />)
-    expect(gasBox().getByRole("status").textContent).toContain("Compiling gas estimate")
-    expect(screen.queryByText("424,242 gas")).toBeNull()
+    expect(screen.getByText("Local simulation · Paris rules · Diamond only")).toBeTruthy()
+    expect(screen.queryByText("420,000 gas")).toBeNull()
+    expect(screen.queryByText(/Code deposit|External functions|Internal functions/)).toBeNull()
+  })
+
+  it("preserves integer precision when formatting gas", () => {
+    render(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} deploymentEstimate={{ status: "ready", result: { ...simulated, totalGasSpent: "9007199254740993" } }} />)
+    expect(screen.getByText("9,007,199,254,740,993 gas")).toBeTruthy()
+  })
+
+  it("keeps missing or failed simulations honest while leaving the command available", () => {
+    const { rerender } = render(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} />)
+    expect(gasBox().getByRole("status").textContent).toContain("unavailable")
+    expect(screen.queryByText(/\d[\d,]* gas/)).toBeNull()
+    rerender(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} deploymentEstimate={{ status: "error", error: "Diamond reverted." }} />)
+    expect(gasBox().getByRole("alert").textContent).toContain("Diamond reverted")
     expect(screen.getByLabelText("Compose command").textContent?.replace(/\n  /g, " ")).toBe(cliCommand)
-    rerender(<GasEstimatePanel currentCompileResult={finiteResult} currentCompileError="Compilation timed out." compiling={false} cliCommand={cliCommand} />)
+  })
+
+  it.each(["", "-5", "NaN", "Infinity", "1.5", "0x10", "123 gas", 123, null])("rejects malformed simulated gas %s", (total) => {
+    render(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} deploymentEstimate={{ status: "ready", result: { ...simulated, totalGasSpent: total as typeof simulated.totalGasSpent } }} />)
+    expect(gasBox().getByRole("alert").textContent).toContain("invalid gas")
+  })
+
+  it("hides old gas for compiler invalidation, errors, and pending simulation", () => {
+    const ready = { status: "ready" as const, result: simulated }
+    const { rerender } = render(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} deploymentEstimate={ready} />)
+    expect(screen.getByText("424,242 gas")).toBeTruthy()
+    rerender(<GasEstimatePanel currentCompileResult={result} compiling cliCommand={cliCommand} deploymentEstimate={ready} />)
+    expect(gasBox().getByRole("status").textContent).toContain("Compiling")
+    expect(screen.queryByText("424,242 gas")).toBeNull()
+    rerender(<GasEstimatePanel currentCompileResult={result} compiling={false} cliCommand={cliCommand} deploymentEstimate={{ status: "loading" }} />)
+    expect(gasBox().getByRole("status").textContent).toContain("Simulating")
+    rerender(<GasEstimatePanel currentCompileResult={result} compiling={false} currentCompileError="Timed out" cliCommand={cliCommand} deploymentEstimate={ready} />)
     expect(gasBox().getByRole("alert").textContent).toContain("Compiler unavailable")
     expect(screen.queryByText("424,242 gas")).toBeNull()
-    expect(screen.getByLabelText("Compose command").textContent?.replace(/\n  /g, " ")).toBe(cliCommand)
-    rerender(<GasEstimatePanel currentCompileResult={{ ...finiteResult, diagnostics: [{ severity: "error", message: "Bad source" }] }} compiling={false} cliCommand={cliCommand} />)
-    expect(gasBox().getByRole("alert").textContent).toContain("Compilation failed")
-    expect(screen.queryByText("424,242 gas")).toBeNull()
-    expect(screen.getByLabelText("Compose command").textContent?.replace(/\n  /g, " ")).toBe(cliCommand)
-    rerender(<GasEstimatePanel compiling={false} cliCommand={cliCommand} />)
+    rerender(<GasEstimatePanel compiling={false} cliCommand={cliCommand} deploymentEstimate={ready} />)
     expect(gasBox().getByRole("status").textContent).toContain("Compile the project")
-    expect(screen.queryByText("424,242 gas")).toBeNull()
-    expect(screen.getByLabelText("Compose command").textContent?.replace(/\n  /g, " ")).toBe(cliCommand)
   })
+
 })
 
 describe("Compose command copy", () => {

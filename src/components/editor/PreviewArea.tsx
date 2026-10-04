@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useLaunchpadStore } from "@/lib/state/store"
 import { buildCliCommand, resolveCatalogSelection, uniqueStrings } from "@/lib/compose-core"
 import { planComposition } from "@/lib/compose-core"
@@ -29,6 +29,8 @@ import {
   Network,
 } from "lucide-react"
 import { WorkspaceLayout } from "./WorkspaceLayout"
+import { getWorkspaceModeSnapshot, subscribeToNavigation } from "@/lib/navigation"
+import { useDeploymentEstimate } from "./useDeploymentEstimate"
 import { useProjectFileSelection } from "./workspaceViewState"
 import { WorkspaceSourceViewport } from "./WorkspaceSourceViewport"
 import { ProjectDataPanel, GasEstimatePanel, SelectorRow, StorageRow } from "./WorkspaceProjectReview"
@@ -211,7 +213,7 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
         if (presentation === "classic") setSelectedFile("src/Diamond.sol")
       })
     return () => { cancelled = true }
-  }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript, presentation])
+  }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript, presentation, setSelectedFile])
 
   const compileIdentity = JSON.stringify({ diamondCode, config })
 
@@ -241,11 +243,18 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
     }
   }, [catalog, selection, plan, diamondCode, config, compileIdentity])
 
+  const workspaceMode = useSyncExternalStore(subscribeToNavigation, getWorkspaceModeSnapshot, () => "builder")
+  const currentCompileResult = compiledSource === compileIdentity ? compileResult : undefined
+  const currentCompileError = failedSource === compileIdentity ? compileError : undefined
+  const deploymentEstimate = useDeploymentEstimate(
+    currentCompileResult?.deploymentArtifacts,
+    presentation === "workspace" && workspaceMode === "project",
+    compileIdentity,
+  )
+
   if (!catalog || !selection || !plan || !config) return null
 
   const allFacets = facetNames
-  const currentCompileResult = compiledSource === compileIdentity ? compileResult : undefined
-  const currentCompileError = failedSource === compileIdentity ? compileError : undefined
   const compiling = !!catalog && !currentCompileResult && !currentCompileError
   const hasCompilerErrors = currentCompileResult?.diagnostics.some(
     (diagnostic) => diagnostic.severity === "error",
@@ -591,7 +600,7 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
   )
 
   if (presentation === "workspace") {
-    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} projectData={<ProjectDataPanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} gasEstimate={<GasEstimatePanel cliCommand={buildCliCommand(config, activeProject?.name || "my-diamond")} currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} filePath={currentFile.path} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
+    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} projectData={<ProjectDataPanel currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} gasEstimate={<GasEstimatePanel deploymentEstimate={deploymentEstimate} cliCommand={buildCliCommand(config, activeProject?.name || "my-diamond")} currentCompileResult={currentCompileResult} compiling={compiling} currentCompileError={currentCompileError} />} filePath={currentFile.path} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
   }
 
   return (

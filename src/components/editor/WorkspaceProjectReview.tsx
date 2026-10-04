@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import type { DeploymentEstimateState } from "./useDeploymentEstimate"
 import { AlertTriangle, Check, Copy, Fuel, Loader2, Terminal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -78,7 +79,7 @@ export function ProjectDataPanel(props: ProjectReviewProps) {
   )
 }
 
-export function GasEstimatePanel(props: ProjectReviewProps & { cliCommand: string }) {
+export function GasEstimatePanel(props: ProjectReviewProps & { cliCommand: string; deploymentEstimate?: DeploymentEstimateState }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="workspace-pane-header gap-2 border-b bg-muted/25 px-3 text-xs font-medium">
@@ -96,7 +97,7 @@ export function GasEstimatePanel(props: ProjectReviewProps & { cliCommand: strin
   )
 }
 
-function DiamondCreationEstimate({ currentCompileResult, compiling, currentCompileError }: ProjectReviewProps) {
+function DiamondCreationEstimate({ currentCompileResult, compiling, currentCompileError, deploymentEstimate }: ProjectReviewProps & { deploymentEstimate?: DeploymentEstimateState }) {
   if (compiling) return (
     <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
       <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Compiling gas estimate…
@@ -109,21 +110,23 @@ function DiamondCreationEstimate({ currentCompileResult, compiling, currentCompi
     return <p className="text-xs text-muted-foreground" role="status">Compile the project to estimate Diamond deployment gas.</p>
   }
 
-  // Match the generated compiler source exactly; another contract's creation
-  // cost or Diamond's code-deposit component is never a deployment total.
-  const total = currentCompileResult.gasEstimates?.contracts.find((estimate) =>
-    estimate.contract === "Diamond" && estimate.source === "contracts/Diamond.sol",
-  )?.creation?.totalCost
-  if (total === "infinite") {
-    return <p className="text-xs text-muted-foreground" role="status">Not statically estimable. solc returned an unbounded creation cost.</p>
+  if (deploymentEstimate?.status === "loading") {
+    return <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status"><Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Simulating Diamond deployment…</p>
   }
-  if (typeof total !== "string" || !/^\d+$/.test(total)) {
-    return <p className="text-xs text-muted-foreground" role="status">Gas estimate unavailable. No valid Diamond creation total in the current result.</p>
+  if (deploymentEstimate?.status === "error") {
+    return <p className="text-xs text-destructive" role="alert">Simulation unavailable. {deploymentEstimate.error}</p>
+  }
+  if (deploymentEstimate?.status !== "ready") {
+    return <p className="text-xs text-muted-foreground" role="status">{currentCompileResult.deploymentArtifactsError || "Local deployment simulation is unavailable for this compiled project."}</p>
+  }
+  const simulation = deploymentEstimate.result
+  if (typeof simulation.totalGasSpent !== "string" || !/^\d+$/.test(simulation.totalGasSpent) || simulation.fork !== "paris") {
+    return <p className="text-xs text-destructive" role="alert">Simulation returned an invalid gas result.</p>
   }
   return (
     <div>
-      <p className="text-lg font-semibold tabular-nums">{BigInt(total).toLocaleString("en-US")} gas</p>
-      <p className="mt-1 text-xs text-muted-foreground">Static solc creation estimate. Actual deployment requires simulation.</p>
+      <p className="text-lg font-semibold tabular-nums">{BigInt(simulation.totalGasSpent).toLocaleString("en-US")} gas</p>
+      <p className="mt-1 text-xs text-muted-foreground" title="Includes transaction overhead and constructor execution; excludes facet deployment. Uses current sample initialization and deterministic local addresses. Actual chain use may differ; not a gas limit or fee quote.">Local simulation · Paris rules · Diamond only</p>
     </div>
   )
 }
