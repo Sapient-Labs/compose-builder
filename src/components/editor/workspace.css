@@ -8,7 +8,7 @@
 .workspace-panes {
   --workspace-activity-width: 68px;
   --workspace-sidebar-width: 280px;
-  --workspace-right-width: 380px;
+  --workspace-right-width: 440px;
   display: grid;
   /* Both right panes stay compact; the middle pane receives all spare width. */
   grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr) var(--workspace-right-width);
