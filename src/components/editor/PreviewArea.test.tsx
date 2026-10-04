@@ -86,3 +86,14 @@ it("drives current generated source and compiler inputs from the new inline form
   fireEvent.change(screen.getByRole("combobox", { name: "Ownership" }), { target: { value: "owner" } })
   expect(screen.getByTestId("source").textContent).toContain("OwnerDataMod.setContractOwner")
 })
+
+it("invalidates inspection while changed facets compile even when Diamond.sol is unchanged", async () => {
+  render(<PreviewArea presentation="workspace" />)
+  await screen.findByText("Compiled")
+  const source = screen.getByTestId("source").textContent
+  vi.mocked(compileDiamond).mockImplementationOnce(() => new Promise(() => {}))
+  fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))
+  expect(screen.getByTestId("source").textContent).toBe(source)
+  expect(screen.getByText("Compiling")).toBeTruthy()
+  expect(screen.queryByText("Compiled")).toBeNull()
+})

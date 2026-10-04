@@ -212,6 +212,8 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
     return () => { cancelled = true }
   }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript])
 
+  const compileIdentity = JSON.stringify({ diamondCode, config })
+
   useEffect(() => {
     if (!catalog || !selection || !plan || !config || !diamondCode) return
     const controller = new AbortController()
@@ -223,26 +225,26 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
         const result = await compileDiamond(diamondCode, facetInputs, controller.signal)
         if (cancelled) return
         setCompileResult(result)
-        setCompiledSource(diamondCode)
+        setCompiledSource(compileIdentity)
         setCompileError(undefined)
       })
       .catch((error: unknown) => {
         if (cancelled || controller.signal.aborted) return
         setCompileError(error instanceof Error ? error.message : "Compilation failed.")
-        setFailedSource(diamondCode)
+        setFailedSource(compileIdentity)
       })
 
     return () => {
       cancelled = true
       controller.abort()
     }
-  }, [catalog, selection, plan, diamondCode, config])
+  }, [catalog, selection, plan, diamondCode, config, compileIdentity])
 
   if (!catalog || !selection || !plan || !config) return null
 
   const allFacets = facetNames
-  const currentCompileResult = compiledSource === diamondCode ? compileResult : undefined
-  const currentCompileError = failedSource === diamondCode ? compileError : undefined
+  const currentCompileResult = compiledSource === compileIdentity ? compileResult : undefined
+  const currentCompileError = failedSource === compileIdentity ? compileError : undefined
   const compiling = !!catalog && !currentCompileResult && !currentCompileError
   const hasCompilerErrors = currentCompileResult?.diagnostics.some(
     (diagnostic) => diagnostic.severity === "error",
