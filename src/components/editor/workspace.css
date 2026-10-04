@@ -1,3 +1,10 @@
+.workspace-pane-header {
+  display: flex;
+  align-items: center;
+  height: 45px;
+  min-height: 45px;
+  flex-shrink: 0;
+}
 .workspace-panes {
   display: grid;
   grid-template-columns: 48px 280px minmax(0, 1.25fr) minmax(280px, 1fr);

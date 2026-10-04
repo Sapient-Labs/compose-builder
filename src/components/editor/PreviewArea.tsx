@@ -198,19 +198,19 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
         }
         if (cancelled) return
         setLoadedFiles({ config, files: nextFiles })
-        setSelectedFile((current) =>
-          nextFiles.some((file) => file.path === current)
-            ? current
-            : "src/Diamond.sol",
-        )
+        if (presentation === "classic") {
+          setSelectedFile((current) =>
+            nextFiles.some((file) => file.path === current) ? current : "src/Diamond.sol",
+          )
+        }
       })
       .catch(() => {
         if (cancelled) return
         setLoadedFiles({ config, files: nextFiles })
-        setSelectedFile("src/Diamond.sol")
+        if (presentation === "classic") setSelectedFile("src/Diamond.sol")
       })
     return () => { cancelled = true }
-  }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript])
+  }, [catalog, selection, plan, facetNames, diamondCode, config, deployScript, presentation])
 
   const compileIdentity = JSON.stringify({ diamondCode, config })
 
@@ -267,9 +267,18 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
   const displayFiles: ProjectFile[] = [
     { path: "src/Diamond.sol", source: diamondCode, kind: "generated", language: "solidity" },
     deployFile,
-    ...(loadedFiles?.config === config
-      ? loadedFiles.files.filter((file) => file.kind === "facet" || file.kind === "module")
-      : []),
+    ...(presentation === "workspace"
+      ? plan.facets.map(({ name }) => {
+          const path = `src/facets/${name}.sol`
+          return loadedFiles?.config === config
+            ? loadedFiles.files.find((file) => file.path === path) ?? {
+                path, source: "// Source unavailable. Try reloading the project.", kind: "facet" as const, language: "solidity" as const,
+              }
+            : { path, source: "// Loading source…", kind: "facet" as const, language: "solidity" as const }
+        })
+      : loadedFiles?.config === config
+        ? loadedFiles.files.filter((file) => file.kind === "facet" || file.kind === "module")
+        : []),
   ]
   const currentFile = displayFiles.find((file) => file.path === selectedFile) ?? {
     path: "src/Diamond.sol",
@@ -398,8 +407,9 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
               </aside>
   )
   const sourceViewer = (
-              <div className="min-w-0 flex-1 p-4 h-full overflow-auto">
+              <div className={presentation === "workspace" ? "min-w-0 flex-1 h-full overflow-auto" : "min-w-0 flex-1 p-4 h-full overflow-auto"}>
                 <CodeBlock
+                  presentation={presentation}
                   code={currentFile.source}
                   language={currentFile.language}
                   className="h-full"
@@ -580,7 +590,7 @@ export function PreviewArea({ presentation = "classic" }: { presentation?: "clas
   )
 
   if (presentation === "workspace") {
-    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} inspection={inspection} filePath={currentFile.path} validationIcon={validationIcon} />
+    return <WorkspaceLayout toolbar={projectToolbar} explorer={renderFileExplorer} source={sourceViewer} inspection={inspection} filePath={currentFile.path} validationIcon={validationIcon} onSourceSelect={(path) => { if (displayFiles.some((file) => file.path === path)) setSelectedFile(path) }} />
   }
 
   return (

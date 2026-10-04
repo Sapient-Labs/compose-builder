@@ -41,3 +41,11 @@ it("dismisses the mobile overlay after reviewing or selecting a file", () => {
   expect(screen.getByRole("button", { name: "Expand workspace sidebar" })).toBeTruthy()
   vi.unstubAllGlobals()
 })
+
+it("uses one header row contract for editor, graph, and sidebar", () => {
+  const { container } = renderWorkspace()
+  const headers = container.querySelectorAll(".workspace-pane-header")
+  expect(headers).toHaveLength(3)
+  expect(container.querySelector(".workspace-review .workspace-pane-header")).toBeTruthy()
+  expect(container.querySelector(".workspace-graph .workspace-pane-header")).toBeTruthy()
+})

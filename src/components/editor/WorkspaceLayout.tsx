@@ -13,10 +13,11 @@ type Props = {
   inspection: ReactNode
   filePath: string
   validationIcon: ReactNode
+  onSourceSelect?: (path: string) => void
 }
 
 /** Presentation only: source generation, compilation and configuration stay in MN's components. */
-export function WorkspaceLayout({ toolbar, explorer, source, inspection, filePath, validationIcon }: Props) {
+export function WorkspaceLayout({ toolbar, explorer, source, inspection, filePath, validationIcon, onSourceSelect }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarTab, setSidebarTab] = useState("config")
   const [reviewTab, setReviewTab] = useState("code")
@@ -47,7 +48,7 @@ export function WorkspaceLayout({ toolbar, explorer, source, inspection, filePat
 
         <aside id="workspace-sidebar" hidden={!sidebarOpen} className="workspace-sidebar min-h-0 min-w-0 border-r bg-background" aria-label="Configuration and files">
           <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="h-full min-h-0 gap-0">
-            <div className="border-b p-2">
+            <div className="workspace-pane-header border-b px-2">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="config">Configure</TabsTrigger>
                 <TabsTrigger value="files">Files</TabsTrigger>
@@ -60,7 +61,7 @@ export function WorkspaceLayout({ toolbar, explorer, source, inspection, filePat
 
         <section className="workspace-review min-h-0 min-w-0 overflow-hidden" aria-label="Source and compiler review">
           <Tabs value={reviewTab} onValueChange={setReviewTab} className="h-full min-h-0 gap-0">
-            <div className="flex min-w-0 items-center gap-2 border-b bg-muted/25 p-2">
+            <div className="workspace-pane-header min-w-0 gap-2 border-b bg-muted/25 px-2">
               <TabsList className="shrink-0">
                 <TabsTrigger value="code" ref={sourceTab}><Code className="size-4" />Code</TabsTrigger>
                 <TabsTrigger value="inspect" className="group">{validationIcon}Inspect</TabsTrigger>
@@ -73,8 +74,8 @@ export function WorkspaceLayout({ toolbar, explorer, source, inspection, filePat
         </section>
 
         <section className="workspace-graph flex min-h-0 min-w-0 flex-col overflow-hidden border-l" aria-label="Composition preview">
-          <div className="flex h-[53px] shrink-0 items-center gap-2 border-b bg-muted/25 px-3 text-xs font-medium"><Network className="size-4 text-muted-foreground" />Composition</div>
-          <div className="relative min-h-0 flex-1"><DiamondGraph enableWebGLFallback className="h-full w-full" /></div>
+          <div className="workspace-pane-header gap-2 border-b bg-muted/25 px-3 text-xs font-medium"><Network className="size-4 text-muted-foreground" />Composition</div>
+          <div className="relative min-h-0 flex-1"><DiamondGraph enableWebGLFallback className="h-full w-full" onSourceSelect={(path) => { onSourceSelect?.(path); setReviewTab("code"); setSidebarTab("files"); collapseOnSmallScreen() }} /></div>
         </section>
       </div>
     </div>

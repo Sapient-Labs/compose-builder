@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { createBrilliantDiamondGeometry } from "./brilliantDiamond";
 import {
   CATEGORY_COLORS,
+  DIAMOND_CENTER_ID,
   diamondCameraFrame,
   diamondPositions,
 } from "./diamondLayout";
@@ -42,35 +43,57 @@ function CompositionFallback({
   nodes,
   selectedId,
   onSelect,
+  onSelectDiamond,
   onClear,
 }: {
   nodes: DiamondFacetNode[];
   selectedId?: string;
   onSelect: (node: DiamondFacetNode) => void;
+  onSelectDiamond?: () => void;
   onClear: () => void;
 }) {
+  const diamond = (
+    <svg
+      viewBox="0 0 88 76"
+      className="h-16 w-20 text-[#6eb6c4]"
+      aria-hidden="true"
+    >
+      <path
+        d="M20 7h48l16 22-40 40L4 29Z"
+        fill="currentColor"
+        fillOpacity="0.08"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M4 29h80M20 7l9 22 15 40 15-40 9-22M29 29 44 7l15 22"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1"
+      />
+    </svg>
+  );
+
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 pt-16 sm:p-8 sm:pt-16">
       <div className="mx-auto flex max-w-2xl flex-col items-center">
-        <svg
-          viewBox="0 0 88 76"
-          className="mb-3 h-16 w-20 text-[#6eb6c4]"
-          aria-hidden="true"
-        >
-          <path
-            d="M20 7h48l16 22-40 40L4 29Z"
-            fill="currentColor"
-            fillOpacity="0.08"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <path
-            d="M4 29h80M20 7l9 22 15 40 15-40 9-22M29 29 44 7l15 22"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1"
-          />
-        </svg>
+        {onSelectDiamond ? (
+          <button
+            type="button"
+            aria-label="Diamond source"
+            aria-pressed={selectedId === DIAMOND_CENTER_ID}
+            onClick={onSelectDiamond}
+            className={cn(
+              "mb-3 flex flex-col items-center rounded-lg border p-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              selectedId === DIAMOND_CENTER_ID
+                ? "border-primary bg-primary/10"
+                : "border-transparent",
+            )}
+          >
+            {diamond}
+            <span className="mt-1 text-xs font-medium">Diamond.sol</span>
+          </button>
+        ) : <div className="mb-3">{diamond}</div>}
         <h3 className="text-sm font-medium text-foreground">Project composition</h3>
         <p role="status" className="mt-1 text-center text-xs text-muted-foreground">
           3D preview unavailable. Your composition is shown below.
@@ -167,7 +190,7 @@ function StarSize({ children }: { children: ReactNode }) {
   return <group ref={group}>{children}</group>;
 }
 
-function BrilliantDiamond() {
+function BrilliantDiamond({ selected = false }: { selected?: boolean }) {
   const body = useMemo<BufferGeometry>(
     () => createBrilliantDiamondGeometry(0.5),
     [],
@@ -187,7 +210,7 @@ function BrilliantDiamond() {
         <meshStandardMaterial
           color="#2f7f91"
           emissive="#1a5564"
-          emissiveIntensity={0.32}
+          emissiveIntensity={selected ? 0.55 : 0.32}
           roughness={0.38}
           metalness={0.22}
           flatShading
@@ -278,12 +301,14 @@ function GraphScene({
   nodes,
   selectedId,
   onSelect,
+  onSelectDiamond,
   onClear,
   viewKey,
 }: {
   nodes: DiamondFacetNode[];
   selectedId?: string;
   onSelect: (node: DiamondFacetNode) => void;
+  onSelectDiamond?: () => void;
   onClear: () => void;
   viewKey: string;
 }) {
@@ -338,7 +363,24 @@ function GraphScene({
             raycast={() => null}
           />
         ))}
-        <BrilliantDiamond />
+        <group
+          name="diamond-source"
+          onClick={onSelectDiamond ? (event) => {
+            event.stopPropagation();
+            if (gesture.isClick(event.nativeEvent)) onSelectDiamond();
+          } : undefined}
+          onPointerOver={onSelectDiamond ? (event) => {
+            event.stopPropagation();
+            setHovered(DIAMOND_CENTER_ID);
+            document.body.style.cursor = "pointer";
+          } : undefined}
+          onPointerOut={onSelectDiamond ? () => {
+            setHovered(undefined);
+            document.body.style.cursor = "auto";
+          } : undefined}
+        >
+          <BrilliantDiamond selected={activeId === DIAMOND_CENTER_ID} />
+        </group>
         {nodes.map((node) => (
           <group key={node.id} position={positions.get(node.id)}>
             <StarSize>
@@ -387,15 +429,18 @@ function GraphScene({
   );
 }
 
-type DiamondGraphProps = {
+export type DiamondGraphProps = {
   className?: string;
   /** Opt into a selectable DOM composition when WebGL cannot render. */
   enableWebGLFallback?: boolean;
+  /** Open a current project file. Aggregate access nodes have no source file. */
+  onSourceSelect?: (path: string) => void;
 };
 
 export function DiamondGraph({
   className,
   enableWebGLFallback = false,
+  onSourceSelect,
 }: DiamondGraphProps) {
   const { catalog, activeProject } = useLaunchpadStore();
   const config = activeProject?.config;
@@ -418,9 +463,10 @@ export function DiamondGraph({
       name: string,
       color: string,
       group: DiamondFacetNode["group"],
+      path?: string,
     ) => {
       if (!nodes.some((node) => node.id === id)) {
-        nodes.push({ id, name, color, custom: false, group });
+        nodes.push({ id, name, color, custom: false, group, path });
       }
     };
 
@@ -433,6 +479,7 @@ export function DiamondGraph({
           ? CATEGORY_COLORS.interfaceDetection
           : CATEGORY_COLORS.token,
         group,
+        `src/facets/${facet.name}.sol`,
       );
     }
 
@@ -456,11 +503,13 @@ export function DiamondGraph({
     }
 
     for (const key of config.selectedAccessExtensions) {
+      const facet = plan.accessExtensions.find((facet) => facet.name === key);
       push(
         `access-ext:${key}`,
-        plan.accessExtensions.find((facet) => facet.name === key)?.name ?? key,
+        facet?.name ?? key,
         CATEGORY_COLORS.access,
         "access",
+        facet ? `src/facets/${facet.name}.sol` : undefined,
       );
     }
 
@@ -471,6 +520,17 @@ export function DiamondGraph({
     () => nodes.find((node) => node.id === selectedId),
     [nodes, selectedId],
   );
+  const activeSelectionId = selectedId === DIAMOND_CENTER_ID && onSourceSelect
+    ? DIAMOND_CENTER_ID
+    : selectedNode?.id;
+  const selectNode = (node: DiamondFacetNode) => {
+    setSelectedId(node.id);
+    if (node.path) onSourceSelect?.(node.path);
+  };
+  const selectDiamond = onSourceSelect ? () => {
+    setSelectedId(DIAMOND_CENTER_ID);
+    onSourceSelect("src/Diamond.sol");
+  } : undefined;
 
   const viewKey = useMemo(
     () =>
@@ -490,16 +550,18 @@ export function DiamondGraph({
   const fallback = (
     <CompositionFallback
       nodes={nodes}
-      selectedId={selectedNode?.id}
-      onSelect={(node) => setSelectedId(node.id)}
+      selectedId={activeSelectionId}
+      onSelect={selectNode}
+      onSelectDiamond={selectDiamond}
       onClear={() => setSelectedId(undefined)}
     />
   );
   const scene = (
     <GraphScene
       nodes={nodes}
-      selectedId={selectedNode?.id}
-      onSelect={(node) => setSelectedId(node.id)}
+      selectedId={activeSelectionId}
+      onSelect={selectNode}
+      onSelectDiamond={selectDiamond}
       onClear={() => setSelectedId(undefined)}
       viewKey={viewKey}
     />
@@ -514,12 +576,12 @@ export function DiamondGraph({
     >
       <div className="relative min-h-0 w-full flex-1 overflow-hidden">
         <div className="pointer-events-none absolute right-4 top-4 z-30 flex items-center gap-2">
-          {selectedNode && (
+          {activeSelectionId && (
             <Badge
               variant="outline"
               className="border-border bg-card text-foreground shadow-sm"
             >
-              {selectedNode.name}
+              {activeSelectionId === DIAMOND_CENTER_ID ? "Diamond" : selectedNode?.name}
             </Badge>
           )}
           <Badge

@@ -9,7 +9,7 @@ import { loadBasesCatalog } from "@/lib/compose-core"
 import { compileDiamond } from "@/lib/compose-core/compiler"
 
 vi.mock("@/components/ui/code-block", () => ({ CodeBlock: ({ code }: { code: string }) => <pre data-testid="source">{code}</pre> }))
-vi.mock("@/components/graph/DiamondGraph", () => ({ DiamondGraph: () => <div>Composition graph</div> }))
+vi.mock("@/components/graph/DiamondGraph", () => ({ DiamondGraph: ({ onSourceSelect }: { onSourceSelect?: (path: string) => void }) => <div>Composition graph<button onClick={() => onSourceSelect?.("src/Diamond.sol")}>Graph diamond</button><button onClick={() => onSourceSelect?.("src/facets/CounterDataFacet.sol")}>Graph counter data</button><button onClick={() => onSourceSelect?.("src/facets/CounterIncrementFacet.sol")}>Graph counter increment</button></div> }))
 vi.mock("@/lib/compose-core/compiler", () => ({ compileDiamond: vi.fn(async () => ({ diagnostics: [], validation: { ok: true, messages: [], selectors: [], storage: [], collisionCount: 0 } })) }))
 
 const localFetch = async (url: string | URL | Request) => {
@@ -23,7 +23,7 @@ beforeEach(async () => {
   useLaunchpadStore.getState().reset()
   useLaunchpadStore.getState().setCatalog(await loadBasesCatalog())
   useLaunchpadStore.getState().setConfig({ baseKey: "counter" })
-  vi.mocked(compileDiamond).mockClear()
+  vi.mocked(compileDiamond).mockReset().mockResolvedValue({ diagnostics: [], validation: { ok: true, messages: [], selectors: [], storage: [], collisionCount: 0 } } as Awaited<ReturnType<typeof compileDiamond>>)
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
@@ -35,7 +35,7 @@ it("uses the original source/compiler pipeline and opens actual selected facet f
   fireEvent.click(screen.getByRole("button", { name: "Generate project" }))
   const file = await screen.findByRole("button", { name: "CounterDataFacet.sol" })
   fireEvent.click(file)
-  expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet")
+  await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
   fireEvent.mouseDown(screen.getByRole("tab", { name: /Inspect/ }), { button: 0, ctrlKey: false })
   expect(screen.getByText("Project passed local checks")).toBeTruthy()
   expect(screen.getByText("Composition graph")).toBeTruthy()
@@ -99,4 +99,49 @@ it("invalidates inspection while changed facets compile even when Diamond.sol is
   expect(screen.getByTestId("source").textContent).toBe(source)
   expect(screen.getByText("Compiling")).toBeTruthy()
   expect(screen.queryByText("Compiled")).toBeNull()
+})
+
+
+it("graph source selection opens Code and selects the exact explorer file, including Diamond", async () => {
+  render(<PreviewArea presentation="workspace" />)
+  await screen.findByText("Compiled")
+  fireEvent.mouseDown(screen.getByRole("tab", { name: /Inspect/ }), { button: 0, ctrlKey: false })
+  fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
+  await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
+  expect(screen.getByRole("button", { name: "CounterDataFacet.sol" }).getAttribute("aria-current")).toBe("page")
+  fireEvent.click(screen.getByRole("button", { name: "Graph diamond" }))
+  expect(screen.getByTestId("source").textContent).toContain("contract Diamond")
+  expect(screen.getByRole("button", { name: "Diamond.sol" }).getAttribute("aria-current")).toBe("page")
+})
+
+it("a late source load preserves the most recent graph or file selection", async () => {
+  let release: (response: Response) => void = () => {}
+  const pending = new Promise<Response>((resolve) => { release = resolve })
+  vi.mocked(fetch).mockImplementation((url) => String(url).includes("compose-sources.json") ? pending : localFetch(url))
+  render(<PreviewArea presentation="workspace" />)
+  fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
+  expect(screen.getByTestId("source").textContent).toContain("Loading source")
+  expect(screen.getByRole("button", { name: "CounterDataFacet.sol" }).getAttribute("aria-current")).toBe("page")
+  fireEvent.click(screen.getByRole("button", { name: "Graph counter increment" }))
+  await act(async () => { release(await localFetch("/compiler/compose-sources.json")) })
+  await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterIncrementFacet"))
+  expect(screen.getByRole("button", { name: "CounterIncrementFacet.sol" }).getAttribute("aria-current")).toBe("page")
+  fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
+  await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
+  fireEvent.click(screen.getByRole("button", { name: "Diamond.sol" }))
+  expect(screen.getByTestId("source").textContent).toContain("contract Diamond")
+})
+
+it("failed facet loading does not redirect a newer Diamond selection", async () => {
+  let reject: (reason: Error) => void = () => {}
+  const pending = new Promise<Response>((_, fail) => { reject = fail })
+  vi.mocked(fetch).mockImplementation((url) => String(url).includes("compose-sources.json") ? pending : localFetch(url))
+  render(<PreviewArea presentation="workspace" />)
+  fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
+  fireEvent.click(screen.getByRole("button", { name: "Graph diamond" }))
+  await act(async () => { reject(new Error("Offline")) })
+  expect(screen.getByTestId("source").textContent).toContain("contract Diamond")
+  fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
+  expect(screen.getByTestId("source").textContent).toContain("Source unavailable")
+  expect(screen.getByRole("button", { name: "CounterDataFacet.sol" }).getAttribute("aria-current")).toBe("page")
 })
