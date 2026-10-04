@@ -8,46 +8,94 @@
 .workspace-panes {
   --workspace-activity-width: 68px;
   --workspace-sidebar-width: 280px;
+  --workspace-sidebar-strip-width: 44px;
   --workspace-right-width: 440px;
   display: grid;
-  /* Both right panes stay compact; the middle pane receives all spare width. */
   grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr) var(--workspace-right-width);
   grid-template-areas: "activity middle right";
   overflow: hidden;
 }
+.workspace-panes[data-mode="builder"] {
+  grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr);
+  grid-template-areas: "activity main";
+}
 .workspace-panes[data-mode="builder"][data-sidebar-open="true"] {
-  grid-template-columns: var(--workspace-activity-width) var(--workspace-sidebar-width) minmax(0, 1fr) var(--workspace-right-width);
-  grid-template-areas: "activity sidebar middle right";
+  grid-template-columns: var(--workspace-activity-width) var(--workspace-sidebar-width) minmax(0, 1fr);
+  grid-template-areas: "activity sidebar main";
+}
+.workspace-panes[data-mode="builder"][data-sidebar-open="false"] {
+  grid-template-columns: var(--workspace-activity-width) var(--workspace-sidebar-strip-width) minmax(0, 1fr);
+  grid-template-areas: "activity sidebar main";
 }
 .workspace-activity { grid-area: activity; }
 .workspace-sidebar { grid-area: sidebar; }
+.workspace-sidebar-strip { grid-area: sidebar; }
 .workspace-review { grid-area: middle; }
 .workspace-graph { grid-area: right; }
+.workspace-main {
+  grid-area: main;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.workspace-main[data-orientation="column"] { flex-direction: column; }
+.workspace-main > .workspace-review {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+.workspace-main > .workspace-graph {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.workspace-splitter {
+  flex: 0 0 12px;
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+.workspace-splitter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--border);
+  transition: background 0.15s ease-out;
+}
+.workspace-main[data-orientation="column"] .workspace-splitter { cursor: row-resize; }
+.workspace-main[data-orientation="column"] .workspace-splitter::before {
+  top: 50%;
+  left: 0;
+  right: 0;
+  bottom: auto;
+  width: auto;
+  height: 2px;
+  transform: translateY(-50%);
+}
+.workspace-splitter:hover::before,
+.workspace-splitter:focus-visible::before,
+.workspace-splitter[data-dragging="true"]::before {
+  background: var(--primary);
+}
 .workspace-sidebar[hidden] { display: none; }
 .workspace-activity button[aria-pressed="true"] { color: var(--primary); background: var(--accent); }
+.workspace-sidebar-strip button[aria-pressed="true"] { color: var(--primary); }
 @media (max-width: 1199px) {
   .workspace-panes {
     --workspace-activity-width: 60px;
     --workspace-sidebar-width: 260px;
   }
-}
-@media (max-width: 999px) {
-  .workspace-panes {
-    grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr);
-    grid-template-areas: "activity middle" "activity right";
-    grid-template-rows: minmax(0, 3fr) minmax(180px, 2fr);
-  }
-  .workspace-panes[data-mode="builder"][data-sidebar-open="true"] {
-    grid-template-columns: var(--workspace-activity-width) var(--workspace-sidebar-width) minmax(0, 1fr);
-    grid-template-areas: "activity sidebar middle" "activity sidebar right";
-  }
-  .workspace-graph { border-left: 0; border-top: 1px solid var(--border); }
-}
-@media (max-width: 767px) {
+}@media (max-width: 767px) {
   .workspace-panes { position: relative; }
   .workspace-panes[data-mode="builder"][data-sidebar-open="true"] {
     grid-template-columns: var(--workspace-activity-width) minmax(0, 1fr);
-    grid-template-areas: "activity middle" "activity right";
+    grid-template-areas: "activity main";
   }
   .workspace-sidebar { position: absolute; grid-area: auto; z-index: 20; inset: 0 auto 0 var(--workspace-activity-width); width: min(280px, calc(100% - var(--workspace-activity-width))); box-shadow: 8px 0 20px rgb(0 0 0 / 0.12); }
 }

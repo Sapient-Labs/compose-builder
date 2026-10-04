@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react"
-import { ArrowRight, Gem } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -116,8 +116,7 @@ export function DiamondSetupPanel({ onReview }: { onReview?: () => void }) {
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-background" aria-labelledby={`${id}-title`}>
       <header className="shrink-0 border-b px-3 py-3">
         <h2 id={`${id}-title`} className="flex items-center gap-2 text-sm font-semibold">
-          <Gem className="size-4 text-primary" aria-hidden="true" />
-          Configure diamond
+          Configuration
         </h2>
         <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Changes update your current project.</p>
       </header>

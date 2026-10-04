@@ -46,7 +46,7 @@ beforeEach(async () => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 it("uses the original source/compiler pipeline and opens actual selected facet files", async () => {
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   expect(compileDiamond).toHaveBeenCalled()
   expect(screen.getByTestId("source").textContent).toContain("contract Diamond")
@@ -70,7 +70,7 @@ it("updates generated source immediately and ignores obsolete file loads", async
     if (String(url).includes("compose-sources.json") && firstManifest) { firstManifest = false; return pending }
     return localFetch(url)
   })
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await act(async () => useLaunchpadStore.getState().setConfig({ baseKey: "erc-20" }))
   expect(screen.getByTestId("source").textContent).toContain("ERC20")
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }), { button: 0, ctrlKey: false })
@@ -81,7 +81,7 @@ it("updates generated source immediately and ignores obsolete file loads", async
 })
 
 it("keeps framework source options functional", async () => {
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   await act(async () => useLaunchpadStore.getState().setConfig({ framework: "hardhat", toolbox: "viem" }))
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }), { button: 0, ctrlKey: false })
@@ -92,7 +92,7 @@ it("keeps framework source options functional", async () => {
 })
 
 it("drives current generated source and compiler inputs from the new inline form", async () => {
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("checkbox", { name: "CounterResetFacet" }))
   await waitFor(() => expect(vi.mocked(compileDiamond).mock.calls.at(-1)?.[1]?.some((x) => x.name === "CounterResetFacet")).toBe(true))
@@ -111,7 +111,7 @@ it("drives current generated source and compiler inputs from the new inline form
 })
 
 it("invalidates inspection while changed facets compile even when Diamond.sol is unchanged", async () => {
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   const source = screen.getByTestId("source").textContent
   vi.mocked(compileDiamond).mockImplementationOnce(() => new Promise(() => {}))
@@ -123,7 +123,7 @@ it("invalidates inspection while changed facets compile even when Diamond.sol is
 
 
 it("graph source selection opens Code and selects the exact explorer file, including Diamond", async () => {
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
   await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
@@ -137,7 +137,7 @@ it("a late source load preserves the most recent graph or file selection", async
   let release: (response: Response) => void = () => {}
   const pending = new Promise<Response>((resolve) => { release = resolve })
   vi.mocked(fetch).mockImplementation((url) => String(url).includes("compose-sources.json") ? pending : localFetch(url))
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
   expect(screen.getByTestId("source").textContent).toContain("Loading source")
   expect(screen.getByRole("button", { name: "CounterDataFacet.sol" }).getAttribute("aria-current")).toBe("page")
@@ -155,7 +155,7 @@ it("failed facet loading does not redirect a newer Diamond selection", async () 
   let reject: (reason: Error) => void = () => {}
   const pending = new Promise<Response>((_, fail) => { reject = fail })
   vi.mocked(fetch).mockImplementation((url) => String(url).includes("compose-sources.json") ? pending : localFetch(url))
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
   fireEvent.click(screen.getByRole("button", { name: "Graph diamond" }))
   await act(async () => { reject(new Error("Offline")) })
@@ -167,13 +167,12 @@ it("failed facet loading does not redirect a newer Diamond selection", async () 
 
 
 it("Review project opens selectors and gas, then Builder keeps the selected source", async () => {
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("button", { name: "Graph counter data" }))
   await waitFor(() => expect(screen.getByTestId("source").textContent).toContain("contract CounterDataFacet"))
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Configure" }), { button: 0, ctrlKey: false })
   fireEvent.click(screen.getByRole("button", { name: "Review project" }))
-  expect(window.location.hash).toBe("#/workspace/project")
   expect(screen.getByRole("tab", { name: /Selectors/ })).toBeTruthy()
   expect(screen.getByRole("heading", { name: "Gas estimate" })).toBeTruthy()
   fireEvent.click(screen.getByRole("button", { name: "Builder" }))
@@ -188,7 +187,7 @@ it("Project never displays previous selectors or gas while a changed selection c
     gasEstimates: { compilerVersion: "0.8.30", optimizer: { enabled: true, runs: 200 }, evmVersion: "paris", contracts: [{ contract: "Diamond", source: "contracts/Diamond.sol", creation: { totalCost: "424242" as const }, external: {}, internal: {} }] },
   }
   vi.mocked(compileDiamond).mockResolvedValueOnce(oldResult)
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("button", { name: "Review project" }))
   expect(screen.getByText("oldFunction()")).toBeTruthy()
@@ -205,7 +204,7 @@ it("Project never displays previous selectors or gas while a changed selection c
 })
 
 it("Project command follows current project configuration even while gas recompiles", async () => {
-  render(<PreviewArea presentation="workspace" />)
+  render(<PreviewArea />)
   await screen.findByText("Compiled")
   fireEvent.click(screen.getByRole("button", { name: "Review project" }))
   const command = () => buildCliCommand(useLaunchpadStore.getState().activeProject!.config, useLaunchpadStore.getState().activeProject!.name || "my-diamond")
@@ -216,7 +215,7 @@ it("Project command follows current project configuration even while gas recompi
     useLaunchpadStore.getState().setConfig({ framework: "hardhat", toolbox: "viem", selectedLibraries: ["ERC165Facet"], selectedAccess: ["owner"] })
   })
   expect(screen.getByLabelText("Compose command").textContent?.replace(/\n  /g, " ")).toBe(command())
-  expect(command()).toContain("--name My-chosen-diamond")
+  expect(command()).toContain("init My-chosen-diamond")
   expect(command()).toContain("--framework hardhat --toolbox viem")
   expect(screen.queryByText("424,242 gas")).toBeNull()
 })

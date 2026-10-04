@@ -18,3 +18,5 @@ export type {
   SelectorEntry,
   StorageEntry,
 } from "./compiler";
+export { collectProjectFiles, createGistViaProxy, buildRemixUrl } from "./remix";
+export type { ProjectFile } from "./remix";

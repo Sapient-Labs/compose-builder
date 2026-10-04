@@ -1,36 +1,43 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { act, cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import App from "./App"
 import { useLaunchpadStore } from "@/lib/state/store"
 
 vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn() }) }))
-vi.mock("@/components/editor/EditorLayout", () => ({ EditorLayout: () => <div>Original editor</div> }))
-vi.mock("@/components/editor/EditorSidebar", () => ({ EditorSidebar: () => <div>Original sidebar</div> }))
+vi.mock("@/lib/compose-core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/compose-core")>()
+  return { ...actual, loadBasesCatalog: vi.fn().mockRejectedValue(new Error("Catalog unavailable")) }
+})
+vi.mock("@/components/editor/PreviewArea", () => ({ PreviewArea: () => <div>Workspace preview</div> }))
 vi.mock("@/components/editor/ContinueLocallyDialog", () => ({ ContinueLocallyDialog: () => <button>Continue locally</button> }))
-vi.mock("@/components/editor/PreviewArea", () => ({ PreviewArea: ({ presentation }: { presentation: string }) => <div>{presentation} presentation</div> }))
 
 beforeEach(() => {
-  window.history.replaceState(null, "", "/")
   useLaunchpadStore.setState({ catalog: { globals: {}, features: {} }, isLoading: false, error: null })
 })
 afterEach(cleanup)
 
-it("keeps the original editor at the default route and handles back/forward hash changes", () => {
-  const config = useLaunchpadStore.getState().activeProject?.config
+it("renders the workspace preview once the catalog is available", () => {
   render(<App />)
-  expect(screen.getByText("Original editor")).toBeTruthy()
-  expect(screen.getByText("Original sidebar")).toBeTruthy()
-  expect(screen.getByRole("link", { name: "Workspace" }).getAttribute("href")).toBe("#/workspace")
-  act(() => { window.history.replaceState(null, "", "#/workspace"); window.dispatchEvent(new HashChangeEvent("hashchange")) })
-  expect(screen.getByText("workspace presentation")).toBeTruthy()
-  expect(screen.queryByText("Original sidebar")).toBeNull()
-  act(() => { window.history.replaceState(null, "", "#/"); window.dispatchEvent(new HashChangeEvent("hashchange")) })
-  expect(screen.getByText("Original editor")).toBeTruthy()
-  expect(useLaunchpadStore.getState().activeProject?.config).toBe(config)
+  expect(screen.getByText("Workspace preview")).toBeTruthy()
 })
 
-it("supports direct workspace links", () => {
-  window.history.replaceState(null, "", "#/workspace")
+it("shows a loading state while the catalog is unavailable", () => {
+  useLaunchpadStore.setState({ catalog: null, isLoading: true })
   render(<App />)
-  expect(screen.getByText("workspace presentation")).toBeTruthy()
+  expect(screen.getByText("Loading catalog...")).toBeTruthy()
+  expect(screen.queryByText("Workspace preview")).toBeNull()
+})
+
+it("shows an error state when the catalog fails to load", async () => {
+  useLaunchpadStore.setState({ catalog: null, isLoading: false, error: null })
+  render(<App />)
+  expect(await screen.findByText("Catalog unavailable")).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy()
+})
+
+it("exposes documentation and theme controls in the toolbar", () => {
+  render(<App />)
+  expect(screen.getByRole("link", { name: "Documentation" })).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Continue locally" })).toBeTruthy()
 })

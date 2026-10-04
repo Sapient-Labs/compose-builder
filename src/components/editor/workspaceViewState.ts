@@ -85,3 +85,40 @@ export function writeWorkspaceScroll(projectId: string | undefined, filePath: st
     writeStored(storageKey(projectId, `scroll:${encodeURIComponent(filePath)}`), position)
   }
 }
+
+export type WorkspaceMode = "builder" | "project"
+
+export function readWorkspaceMode(): WorkspaceMode {
+  return readStored("compose-launchpad:workspace:mode") === "project" ? "project" : "builder"
+}
+
+export function writeWorkspaceMode(mode: WorkspaceMode) {
+  writeStored("compose-launchpad:workspace:mode", mode)
+}
+
+export type WorkspacePaneLayout = {
+  codeOpen: boolean
+  graphOpen: boolean
+  splitRatio: number
+}
+
+export function readWorkspacePaneLayout(): WorkspacePaneLayout {
+  const saved = readStored("compose-launchpad:workspace:pane-layout")
+  let codeOpen = true
+  let graphOpen = true
+  let splitRatio = 0.35
+  if (saved && typeof saved === "object") {
+    const record = saved as Record<string, unknown>
+    if (typeof record.codeOpen === "boolean") codeOpen = record.codeOpen
+    if (typeof record.graphOpen === "boolean") graphOpen = record.graphOpen
+    if (typeof record.splitRatio === "number" && Number.isFinite(record.splitRatio)) {
+      splitRatio = Math.min(0.8, Math.max(0.2, record.splitRatio))
+    }
+  }
+  if (!codeOpen && !graphOpen) codeOpen = true
+  return { codeOpen, graphOpen, splitRatio }
+}
+
+export function writeWorkspacePaneLayout(layout: WorkspacePaneLayout) {
+  writeStored("compose-launchpad:workspace:pane-layout", layout)
+}

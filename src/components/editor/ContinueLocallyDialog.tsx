@@ -98,7 +98,7 @@ export function ContinueLocallyDialog() {
               </div>
 
               <p className="mt-3 text-xs text-muted-foreground">
-                Creates your project structure, Diamond contract, deployment script, tests, and configuration. 
+                Creates your project structure, Diamond contract, deployment script, tests, and configuration.
               </p>
             </>
           )}
