@@ -1,10 +1,8 @@
-import type { DiamondConfig } from "@/types/config";
-import type { BasesCatalog, CatalogSelection } from "@/types/catalog";
-import {
-  planComposition,
-  resolveCatalogSelection,
-  uniqueStrings,
-} from "@/lib/compose-core";
+import type { DiamondConfig } from '@/types/config';
+import type { BasesCatalog, CatalogSelection } from '@/types/catalog';
+import { planComposition } from './composition';
+import { resolveCatalogSelection } from './selection';
+import { uniqueStrings } from './strings';
 
 export type ProjectFile = {
   path: string;
@@ -37,7 +35,7 @@ function resolveFacetEntry(selection: CatalogSelection, name: string) {
 }
 
 function templateUrl(entryPath: string) {
-  return `${import.meta.env.BASE_URL}templates/${entryPath.slice("./src/templates/".length)}`;
+  return `${import.meta.env.BASE_URL}templates/${entryPath.slice('./src/templates/'.length)}`;
 }
 
 type ComposeManifest = {
@@ -51,9 +49,7 @@ type LoadedFacetSource = {
 };
 
 async function loadComposeManifest(): Promise<ComposeManifest | undefined> {
-  const response = await fetch(
-    `${import.meta.env.BASE_URL}compiler/compose-sources.json`,
-  );
+  const response = await fetch(`${import.meta.env.BASE_URL}compiler/compose-sources.json`);
   if (!response.ok) return undefined;
   return response.json() as Promise<ComposeManifest>;
 }
@@ -71,7 +67,7 @@ async function loadFacetSources(
     if (!entry) continue;
 
     let content: string | undefined;
-    if (entry.path.startsWith("./src/templates/")) {
+    if (entry.path.startsWith('./src/templates/')) {
       const response = await fetch(templateUrl(entry.path));
       if (response.ok) content = await response.text();
     } else if (manifest?.sources[entry.path]) {
@@ -88,7 +84,7 @@ function generateDiamondCode(
   catalog: BasesCatalog,
   options: { explicitOwner?: boolean; extraImports?: string[] } = {},
 ): string {
-  const pragma = catalog.globals.diamond?.pragma || ">=0.8.30";
+  const pragma = catalog.globals.diamond?.pragma || '>=0.8.30';
   const facets = plan.facets.map((facet) => facet.name);
   const constructorEntries = plan.constructorEntries;
   const initializerModules = plan.initializerModules;
@@ -97,9 +93,9 @@ function generateDiamondCode(
     `import "@perfect-abstractions/compose/diamond/DiamondMod.sol" as DiamondMod;`,
     ...(options.extraImports ?? []),
     ...initializerModules.map(
-      (path) => `import "${path}" as ${path.split("/").pop()!.replace(".sol", "")};`,
+      (path) => `import "${path}" as ${path.split('/').pop()!.replace('.sol', '')};`,
     ),
-    ...(facets.includes("ERC165Facet")
+    ...(facets.includes('ERC165Facet')
       ? [
           `import "@perfect-abstractions/compose/interfaceDetection/ERC165/ERC165Mod.sol" as ERC165Mod;`,
         ]
@@ -107,12 +103,12 @@ function generateDiamondCode(
     ...interfaces.map((entry) => `import "${entry.path}";`),
   ];
 
-  const ownerArgument = options.explicitOwner ? ", address _owner" : "";
+  const ownerArgument = options.explicitOwner ? ', address _owner' : '';
   const initializerCode = constructorEntries
     .map((entry) =>
-      options.explicitOwner ? entry.code.replace(/\bmsg\.sender\b/g, "_owner") : entry.code,
+      options.explicitOwner ? entry.code.replace(/\bmsg\.sender\b/g, '_owner') : entry.code,
     )
-    .join("\n        ");
+    .join('\n        ');
 
   return `// SPDX-License-Identifier: MIT
  pragma solidity ${pragma};
@@ -121,15 +117,19 @@ function generateDiamondCode(
 * https://compose.diamonds
 */
 
-${imports.join("\n")}
+${imports.join('\n')}
 
 contract Diamond {
     constructor(address[] memory _facets${ownerArgument}) {
          DiamondMod.addFacets(_facets);
          ${initializerCode}
-        ${interfaces.length && facets.includes("ERC165Facet")
-          ? interfaces.map((entry) => `ERC165Mod.registerInterface(${entry.id});`).join("\n          ")
-          : ""}
+        ${
+          interfaces.length && facets.includes('ERC165Facet')
+            ? interfaces
+                .map((entry) => `ERC165Mod.registerInterface(${entry.id});`)
+                .join('\n          ')
+            : ''
+        }
     }
 
     fallback() external payable {
@@ -142,18 +142,23 @@ contract Diamond {
 
 function generateDeployScript(
   selection: CatalogSelection,
-  config: { framework: string; toolbox?: string; selectedExtensions: string[]; selectedLibraries: string[] },
+  config: {
+    framework: string;
+    toolbox?: string;
+    selectedExtensions: string[];
+    selectedLibraries: string[];
+  },
 ): string {
   const facets = selectedFacetNames(selection, config);
 
-  if (config.framework === "foundry") {
+  if (config.framework === 'foundry') {
     return `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 import {Diamond} from "../src/Diamond.sol";
-${facets.map((f) => `import {${f}} from "../src/facets/${f}.sol";`).join("\n")}
+${facets.map((f) => `import {${f}} from "../src/facets/${f}.sol";`).join('\n')}
 
 contract DeployScript is Script {
     function setUp() public {}
@@ -163,7 +168,7 @@ contract DeployScript is Script {
 
         address[] memory facets = new address[](${facets.length});
 
-        ${facets.map((f, i) => `facets[${i}] = address(new ${f}());`).join("\n        ")}
+        ${facets.map((f, i) => `facets[${i}] = address(new ${f}());`).join('\n        ')}
 
         diamond = new Diamond(facets);
         console.log("Diamond:", address(diamond));
@@ -173,18 +178,20 @@ contract DeployScript is Script {
 }`;
   }
 
-  const isViem = config.toolbox === "viem";
+  const isViem = config.toolbox === 'viem';
   if (isViem) {
     return `import { viem } from "hardhat";
 
 async function main() {
   const facets = [];
 
-  ${facets.map((f) => {
-    return `const ${f.toLowerCase()} = await viem.deployContract("${f}");
+  ${facets
+    .map((f) => {
+      return `const ${f.toLowerCase()} = await viem.deployContract("${f}");
   console.log("${f}:", ${f.toLowerCase()}.address);
   facets.push(${f.toLowerCase()}.address);`;
-  }).join("\n\n  ")}
+    })
+    .join('\n\n  ')}
 
   const diamond = await viem.deployContract("Diamond", [facets]);
   console.log("Diamond:", diamond.address);
@@ -201,10 +208,14 @@ main().catch((error) => {
 async function main() {
   const facets = [];
 
-  ${facets.map((f) => `const ${f.toLowerCase()} = await ethers.deployContract("${f}");
+  ${facets
+    .map(
+      (f) => `const ${f.toLowerCase()} = await ethers.deployContract("${f}");
   await ${f.toLowerCase()}.waitForDeployment();
   console.log("${f}:", await ${f.toLowerCase()}.getAddress());
-  facets.push(await ${f.toLowerCase()}.getAddress());`).join("\n\n  ")}
+  facets.push(await ${f.toLowerCase()}.getAddress());`,
+    )
+    .join('\n\n  ')}
 
   const Diamond = await ethers.getContractFactory("Diamond");
   const diamond = await Diamond.deploy(facets);
@@ -238,9 +249,9 @@ export async function collectProjectFiles(
   const facetSources = await loadFacetSources(selection, config, manifest);
 
   const files: ProjectFile[] = [
-    { path: "src/Diamond.sol", content: diamondCode },
+    { path: 'src/Diamond.sol', content: diamondCode },
     {
-      path: config.framework === "foundry" ? "script/Deploy.s.sol" : "scripts/deploy.ts",
+      path: config.framework === 'foundry' ? 'script/Deploy.s.sol' : 'scripts/deploy.ts',
       content: deployScript,
     },
   ];
@@ -250,15 +261,15 @@ export async function collectProjectFiles(
   }
 
   files.push({
-    path: "README.md",
-    content: `# ${config.baseKey === "none" ? "Blank Diamond" : config.baseKey + " Diamond"}\n\nFramework: ${config.framework}\nFacets: ${plan.facets.map((f) => f.name).join(", ")}\n\nGenerated by [Compose](https://compose.diamonds)\n`,
+    path: 'README.md',
+    content: `# ${config.baseKey === 'none' ? 'Blank Diamond' : config.baseKey + ' Diamond'}\n\nFramework: ${config.framework}\nFacets: ${plan.facets.map((f) => f.name).join(', ')}\n\nGenerated by [Compose](https://compose.diamonds)\n`,
   });
 
   return files;
 }
 
-const COMPOSE_PACKAGE_PREFIX = "@perfect-abstractions/compose/";
-const REMIX_BASE_URL = "https://app.remix.live/";
+const COMPOSE_PACKAGE_PREFIX = '@perfect-abstractions/compose/';
+const REMIX_BASE_URL = 'https://app.remix.live/';
 
 export type RemixProject = {
   source: string;
@@ -268,7 +279,7 @@ export type RemixProject = {
 function generateRemixDeployer(facetNames: string[]): string {
   const assignments = facetNames
     .map((name, index) => `        facets[${index}] = address(new ${name}());`)
-    .join("\n");
+    .join('\n');
 
   return `contract ComposeDeploy {
     event Deployment(address indexed owner, address indexed diamond, address[] facets);
@@ -297,9 +308,7 @@ export async function buildRemixSource(
     }
     return { name, path: entry.path };
   });
-  const facetImports = packageFacets.map(
-    ({ name, path }) => `import {${name}} from "${path}";`,
-  );
+  const facetImports = packageFacets.map(({ name, path }) => `import {${name}} from "${path}";`);
   const diamondSource = generateDiamondCode(plan, catalog, {
     explicitOwner: true,
     extraImports: facetImports,
@@ -317,16 +326,16 @@ export async function buildRemixSource(
 
 function encodeUtf8Base64(value: string): string {
   const bytes = new TextEncoder().encode(value);
-  let binary = "";
+  let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/=+$/, "");
+  return btoa(binary).replace(/=+$/, '');
 }
 
 export function buildRemixUrl({ source, remappings }: RemixProject): string {
   const params = new URLSearchParams();
-  params.set("code", encodeUtf8Base64(source));
+  params.set('code', encodeUtf8Base64(source));
   if (remappings.length > 0) {
-    params.set("remaps", encodeUtf8Base64(remappings.join("\n")));
+    params.set('remaps', encodeUtf8Base64(remappings.join('\n')));
   }
   return `${REMIX_BASE_URL}?#${params.toString()}`;
 }

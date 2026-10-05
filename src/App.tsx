@@ -1,27 +1,26 @@
-import { useEffect } from "react";
-import { useTheme } from "next-themes";
-import { Toaster } from "sonner";
-import { useLaunchpadStore } from "@/lib/state/store";
-import { loadBasesCatalog } from "@/lib/compose-core";
-import { PreviewArea } from "@/components/editor/PreviewArea";
-import { ContinueLocallyDialog } from "@/components/editor/ContinueLocallyDialog";
-import { OpenInRemixButton } from "@/components/editor/OpenInRemixButton";
-import { BookOpen, Diamond, Moon, Sun } from "lucide-react";
+import { useEffect } from 'react';
+import { useTheme } from 'next-themes';
+import { Toaster } from 'sonner';
+import { useLaunchpadStore } from '@/lib/state/store';
+import { loadBasesCatalog } from '@/lib/compose-core';
+import { PreviewArea } from '@/components/editor/PreviewArea';
+import { ContinueLocallyDialog } from '@/components/editor/ContinueLocallyDialog';
+import { OpenInRemixButton } from '@/components/editor/OpenInRemixButton';
+import { BookOpen, Diamond, Moon, Sun } from 'lucide-react';
 
 function App() {
   const { resolvedTheme, setTheme } = useTheme();
-  const { catalog, setCatalog, isLoading, setLoading, error, setError } =
-    useLaunchpadStore();
+  const { catalog, setCatalog, isLoading, setLoading, error, setError } = useLaunchpadStore();
 
   useEffect(() => {
-    if (catalog || isLoading) return;
+    if (catalog || isLoading || error) return;
 
     setLoading(true);
     loadBasesCatalog()
       .then(setCatalog)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [catalog, isLoading, setCatalog, setLoading, setError]);
+  }, [catalog, isLoading, error, setCatalog, setLoading, setError]);
 
   if (isLoading) {
     return (
@@ -39,10 +38,7 @@ function App() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-destructive mb-4">Error: {error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="text-primary underline"
-          >
+          <button onClick={() => window.location.reload()} className="text-primary underline">
             Retry
           </button>
         </div>
@@ -73,10 +69,14 @@ function App() {
               <button
                 type="button"
                 className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-                aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
+                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                {resolvedTheme === 'dark' ? (
+                  <Sun className="size-4" />
+                ) : (
+                  <Moon className="size-4" />
+                )}
               </button>
               <OpenInRemixButton />
               <ContinueLocallyDialog />
