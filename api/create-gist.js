@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { Redis } from "@upstash/redis";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -13,9 +12,10 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN,
 });
 
-function computeConfigHash(config) {
+async function computeConfigHash(config) {
   const normalized = JSON.stringify(config, Object.keys(config).sort());
-  return createHash("sha256").update(normalized).digest("hex");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function isRateLimited(ip) {
@@ -40,7 +40,7 @@ function json(data, status = 200) {
   });
 }
 
-export default async function handler(req) {
+async function handler(req) {
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
@@ -77,7 +77,7 @@ export default async function handler(req) {
   }
 
   if (config && typeof config === "object") {
-    const cacheKey = `remix-gist:${computeConfigHash(config)}`;
+    const cacheKey = `remix-gist:${await computeConfigHash(config)}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -133,7 +133,7 @@ export default async function handler(req) {
   const result = { gistId: gist.id, gistUrl: gist.html_url };
 
   if (config && typeof config === "object") {
-    const cacheKey = `remix-gist:${computeConfigHash(config)}`;
+    const cacheKey = `remix-gist:${await computeConfigHash(config)}`;
     try {
       await redis.set(cacheKey, result);
     } catch {
@@ -143,3 +143,5 @@ export default async function handler(req) {
 
   return json(result);
 }
+
+export default { fetch: handler };
