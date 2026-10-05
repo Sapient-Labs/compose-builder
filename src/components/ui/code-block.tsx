@@ -156,7 +156,7 @@ export function CodeBlock({
           margin: 0,
           padding: "1rem",
           borderRadius: isWorkspace ? 0 : "0.5rem",
-          fontSize: "0.75rem",
+          fontSize: "0.7rem",
           lineHeight: isWorkspace ? "1.65" : "1.5",
           ...(isWorkspace ? { minHeight: "100%" } : {}),
         }}
