@@ -40,18 +40,31 @@ function templateUrl(entryPath: string) {
   return `${import.meta.env.BASE_URL}templates/${entryPath.slice("./src/templates/".length)}`;
 }
 
+type ComposeManifest = {
+  sources: Record<string, string>;
+  composePackage?: string;
+};
+
+type LoadedFacetSource = {
+  path: string;
+  content: string;
+};
+
+async function loadComposeManifest(): Promise<ComposeManifest | undefined> {
+  const response = await fetch(
+    `${import.meta.env.BASE_URL}compiler/compose-sources.json`,
+  );
+  if (!response.ok) return undefined;
+  return response.json() as Promise<ComposeManifest>;
+}
+
 async function loadFacetSources(
   selection: CatalogSelection,
   config: { selectedExtensions: string[]; selectedLibraries: string[] },
-): Promise<Map<string, string>> {
+  manifest: ComposeManifest | undefined,
+): Promise<Map<string, LoadedFacetSource>> {
   const names = selectedFacetNames(selection, config);
-  const sources = new Map<string, string>();
-
-  const manifestResponse = await fetch(
-    `${import.meta.env.BASE_URL}compiler/compose-sources.json`,
-  );
-  if (!manifestResponse.ok) return sources;
-  const manifest = (await manifestResponse.json()) as { sources: Record<string, string> };
+  const sources = new Map<string, LoadedFacetSource>();
 
   for (const name of names) {
     const entry = resolveFacetEntry(selection, name);
@@ -61,10 +74,10 @@ async function loadFacetSources(
     if (entry.path.startsWith("./src/templates/")) {
       const response = await fetch(templateUrl(entry.path));
       if (response.ok) content = await response.text();
-    } else if (manifest.sources[entry.path]) {
+    } else if (manifest?.sources[entry.path]) {
       content = manifest.sources[entry.path];
     }
-    if (content) sources.set(name, content);
+    if (content) sources.set(name, { path: entry.path, content });
   }
 
   return sources;
@@ -73,6 +86,7 @@ async function loadFacetSources(
 function generateDiamondCode(
   plan: ReturnType<typeof planComposition>,
   catalog: BasesCatalog,
+  options: { explicitOwner?: boolean; extraImports?: string[] } = {},
 ): string {
   const pragma = catalog.globals.diamond?.pragma || ">=0.8.30";
   const facets = plan.facets.map((facet) => facet.name);
@@ -81,6 +95,7 @@ function generateDiamondCode(
   const interfaces = plan.interfaces;
   const imports = [
     `import "@perfect-abstractions/compose/diamond/DiamondMod.sol" as DiamondMod;`,
+    ...(options.extraImports ?? []),
     ...initializerModules.map(
       (path) => `import "${path}" as ${path.split("/").pop()!.replace(".sol", "")};`,
     ),
@@ -92,8 +107,15 @@ function generateDiamondCode(
     ...interfaces.map((entry) => `import "${entry.path}";`),
   ];
 
+  const ownerArgument = options.explicitOwner ? ", address _owner" : "";
+  const initializerCode = constructorEntries
+    .map((entry) =>
+      options.explicitOwner ? entry.code.replace(/\bmsg\.sender\b/g, "_owner") : entry.code,
+    )
+    .join("\n        ");
+
   return `// SPDX-License-Identifier: MIT
-pragma solidity ${pragma};
+ pragma solidity ${pragma};
 
 /* Compose
 * https://compose.diamonds
@@ -102,9 +124,9 @@ pragma solidity ${pragma};
 ${imports.join("\n")}
 
 contract Diamond {
-    constructor(address[] memory _facets) {
-        DiamondMod.addFacets(_facets);
-        ${constructorEntries.map((entry) => entry.code).join("\n        ")}
+    constructor(address[] memory _facets${ownerArgument}) {
+         DiamondMod.addFacets(_facets);
+         ${initializerCode}
         ${interfaces.length && facets.includes("ERC165Facet")
           ? interfaces.map((entry) => `ERC165Mod.registerInterface(${entry.id});`).join("\n          ")
           : ""}
@@ -212,7 +234,8 @@ export async function collectProjectFiles(
 
   const diamondCode = generateDiamondCode(plan, catalog);
   const deployScript = generateDeployScript(selection, config);
-  const facetSources = await loadFacetSources(selection, config);
+  const manifest = await loadComposeManifest();
+  const facetSources = await loadFacetSources(selection, config, manifest);
 
   const files: ProjectFile[] = [
     { path: "src/Diamond.sol", content: diamondCode },
@@ -222,8 +245,8 @@ export async function collectProjectFiles(
     },
   ];
 
-  for (const [name, content] of facetSources) {
-    files.push({ path: `src/facets/${name}.sol`, content });
+  for (const [name, source] of facetSources) {
+    files.push({ path: `src/facets/${name}.sol`, content: source.content });
   }
 
   files.push({
@@ -234,24 +257,76 @@ export async function collectProjectFiles(
   return files;
 }
 
-export async function createGistViaProxy(
-  files: ProjectFile[],
-  config: DiamondConfig,
-): Promise<{ gistId: string; gistUrl: string }> {
-  const response = await fetch("/api/create-gist", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ files, config }),
-  });
+const COMPOSE_PACKAGE_PREFIX = "@perfect-abstractions/compose/";
+const REMIX_BASE_URL = "https://app.remix.live/";
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error ?? `Failed to create gist (${response.status})`);
-  }
+export type RemixProject = {
+  source: string;
+  remappings: string[];
+};
 
-  return response.json();
+function generateRemixDeployer(facetNames: string[]): string {
+  const assignments = facetNames
+    .map((name, index) => `        facets[${index}] = address(new ${name}());`)
+    .join("\n");
+
+  return `contract ComposeDeploy {
+    event Deployment(address indexed owner, address indexed diamond, address[] facets);
+
+    function deploy() external returns (Diamond diamond) {
+        address[] memory facets = new address[](${facetNames.length});
+${assignments}
+        diamond = new Diamond(facets, msg.sender);
+        emit Deployment(msg.sender, address(diamond), facets);
+    }
+}`;
 }
 
-export function buildRemixUrl(gistId: string): string {
-  return `https://app.remix.live/?gist=${gistId}`;
+export async function buildRemixSource(
+  catalog: BasesCatalog,
+  config: DiamondConfig,
+): Promise<RemixProject> {
+  const plan = planComposition(catalog, config);
+
+  const manifest = await loadComposeManifest();
+  const packageFacets = plan.facets.map(({ name, entry }) => {
+    if (!entry.path.startsWith(COMPOSE_PACKAGE_PREFIX)) {
+      throw new Error(
+        `Remix export is unavailable for ${name}: this facet is a local template, not a published Compose package.`,
+      );
+    }
+    return { name, path: entry.path };
+  });
+  const facetImports = packageFacets.map(
+    ({ name, path }) => `import {${name}} from "${path}";`,
+  );
+  const diamondSource = generateDiamondCode(plan, catalog, {
+    explicitOwner: true,
+    extraImports: facetImports,
+  });
+  const source = `${diamondSource}\n\n${generateRemixDeployer(
+    packageFacets.map(({ name }) => name),
+  )}\n`;
+
+  const remappings = manifest?.composePackage
+    ? [`${COMPOSE_PACKAGE_PREFIX}=${manifest.composePackage}/`]
+    : [];
+
+  return { source, remappings };
+}
+
+function encodeUtf8Base64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=+$/, "");
+}
+
+export function buildRemixUrl({ source, remappings }: RemixProject): string {
+  const params = new URLSearchParams();
+  params.set("code", encodeUtf8Base64(source));
+  if (remappings.length > 0) {
+    params.set("remaps", encodeUtf8Base64(remappings.join("\n")));
+  }
+  return `${REMIX_BASE_URL}?#${params.toString()}`;
 }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLaunchpadStore } from "@/lib/state/store";
-import { buildRemixUrl, collectProjectFiles, createGistViaProxy } from "@/lib/compose-core";
+import { buildRemixSource, buildRemixUrl } from "@/lib/compose-core";
 import { Button } from "@/components/ui/button";
 
 function RemixLogo({ className }: { className?: string }) {
@@ -25,9 +25,8 @@ export function OpenInRemixButton() {
     if (!catalog || !config) return;
     setLoading(true);
     try {
-      const files = await collectProjectFiles(catalog, config);
-      const { gistId } = await createGistViaProxy(files, config);
-      window.open(buildRemixUrl(gistId), "_blank", "noopener,noreferrer");
+      const project = await buildRemixSource(catalog, config);
+      window.open(buildRemixUrl(project), "_blank", "noopener,noreferrer");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open in Remix.");
     } finally {
@@ -48,7 +47,7 @@ export function OpenInRemixButton() {
       ) : (
         <RemixLogo className="size-4" />
       )}
-      <span className="hidden sm:inline">{loading ? "Creating…" : "Remix"}</span>
+      <span className="hidden sm:inline">{loading ? "Preparing…" : "Remix"}</span>
     </Button>
   );
 }

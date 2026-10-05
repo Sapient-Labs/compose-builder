@@ -73,14 +73,16 @@ export function planComposition(
   const constructorEntries = [
     ...new Map(
       entries
-        .flatMap((entry) => entry.constructor ?? [])
+        .flatMap((entry) => (Array.isArray(entry.constructor) ? entry.constructor : []))
         .map((entry) => [entry.code, entry]),
     ).values(),
   ];
   const initializerModules = [
     ...new Set(
       entries
-        .filter((entry) => (entry.constructor?.length ?? 0) > 0 && entry.mod)
+        .filter(
+          (entry) => Array.isArray(entry.constructor) && entry.constructor.length > 0 && entry.mod,
+        )
         .map((entry) => entry.mod!),
     ),
   ];

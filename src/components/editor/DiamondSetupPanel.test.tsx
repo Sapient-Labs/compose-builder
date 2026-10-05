@@ -80,7 +80,7 @@ it("omits informational summaries for blank and configured diamonds without chan
   choose("Base", catalog.features["erc-20"].label + " · " + catalog.features["erc-20"].standard)
   fireEvent.click(screen.getByRole("checkbox", { name: "AccessControl" }))
   const plan = planComposition(catalog, current())
-  expect(plan.constructorEntries.length).toBeGreaterThan(0)
+  expect(plan.constructorEntries).toHaveLength(0)
   expect(current().selectedAccess).toContain("access-control")
   expect(screen.queryByText(/Review .*initializers? and sample values/)).toBeNull()
   expect(screen.queryByText(/Role access needs admin/)).toBeNull()
