@@ -1,70 +1,82 @@
-# Compose Project Builder
+# Compose Visual Builder
 
-Interactive smart contract project builder powered by Compose.
+Interactive smart contract project builder powered by [Compose](https://compose.diamonds).
+Configure a Diamond, generate Solidity and a deployment script, compile it in the
+browser, inspect selectors and storage, estimate deployment gas, and export the
+project to Remix or your terminal.
 
-## Workspace page
+## What it does
 
-The original Builder / Project presentation remains the default at `#/`.
-Open **Workspace** in the toolbar for a separate presentation using the same
-saved configuration, catalog, generation and compiler pipeline.
+Compose Builder turns a saved configuration into a complete, compilable Diamond
+project without a backend. Pick a base, add libraries and extensions, choose an
+ownership model, and the app generates the Diamond contract, facet sources, and a
+Foundry or Hardhat deployment script. The generated project is compiled locally in
+a browser worker with a pinned compiler, validated, and summarized.
 
-- **Builder** (`#/workspace`): subordinate Configure / Files controls, a static
-  read-only source viewer, and the composition graph. Diamond and facet graph
-  clicks open the matching source file; aggregate access nodes only highlight.
-- **Project** (`#/workspace/project`): Selectors / Storage in the middle and
-  two compact boxes on the right: Diamond creation gas and the corresponding
-  Compose CLI command with copy. **Review project** switches here. The gas number comes from executing the current compiled Diamond in a
-  disposable browser-local Paris EVM. Selected facets are deployed into fresh
-  temporary state first; only the Diamond transaction is counted (intrinsic
-  gas, constructor execution, runtime code deposit, and applied refunds).
-  Facet deployment costs are excluded. Current sample initialization and
-  deterministic addresses are used; this is not a chain quote, transaction fee,
-  or recommended gas limit. Failed or unsupported simulations show unavailable.
-  The command reuses the existing CLI generator.
+## Interface
 
-Builder's Configure pane offers base, ownership, roles, required facets and
-optional checklists. Changes update the current project live. Switching bases
-clears base-specific options, keeps compatible libraries/access choices, and
-removes unavailable access extensions. Required facets remain read-only.
+The app is a single workspace with two modes, switched from the activity bar.
+Mode, pane layout, selected file, and scroll position are persisted per project in
+`sessionStorage`, so browser Back and direct refresh are safe.
 
-Mode navigation supports browser Back and direct refresh. Switching modes keeps
-the source and graph mounted; source selection and file scroll positions are
-retained in this browser tab when storage is available. Project results are
-invalidated immediately when the composition changes and recomputed locally.
+- **Builder** — a sidebar with **Configure** and **Files** tabs, a read-only source
+  viewport, and the composition graph. Configure offers the base, ownership, roles,
+  required facets, and optional checklists; changes update the project live. The
+  graph renders the Diamond and its facets in 3D on WebGL-capable browsers, with a
+  selectable fallback when WebGL is unavailable. Clicking a Diamond or facet node
+  opens the matching source file; aggregate access nodes only highlight.
+- **Project** — **Selectors** and **Storage** tables in the middle, and two compact
+  boxes on the right: Diamond creation gas and the corresponding Compose CLI
+  command with copy. **Review project** switches here.
 
-The workspace preserves the existing 3D graph on WebGL-capable browsers and
-offers a selectable composition fallback when WebGL is unavailable. On smaller
-screens the right pane moves below the middle pane; Builder's file/config
-sidebar becomes a collapsible overlay. Source is selectable and copyable, with
-no editing caret. This page does not add deployment or source editing.
+The gas number comes from executing the current compiled Diamond in a disposable
+browser-local Paris EVM. Selected facets are deployed into fresh temporary state
+first; only the Diamond transaction is counted (intrinsic gas, constructor
+execution, runtime code deposit, and applied refunds). Facet deployment costs are
+excluded. Current sample initialization and deterministic addresses are used; this
+is not a chain quote, transaction fee, or recommended gas limit. Failed or
+unsupported simulations show unavailable.
 
-Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and
-`npm run compiler:check` to verify changes. Tests prepare the pinned compiler
-source assets automatically. The dependency-free graph probe tests use Node's
-TypeScript support (Node 22.18+ or 24 recommended for the test command).
+On smaller screens the right pane moves below the middle pane, and the Builder
+sidebar becomes a collapsible overlay. Source is selectable and copyable, with no
+editing caret. The app does not add deployment or source editing.
 
 ## Features
 
-- **Project Builder**: Configure your smart contract project through an intuitive interface
-  - Starting point selection (ERC-20, ERC-721, Counter, etc.)
-  - Optional facet selection
-  - Libraries and dependencies (ERC-165, etc.)
-  - Permissions (Ownership, Roles)
-  - Framework selection (Foundry/Hardhat)
-  - Live preview with code generation
+- **Catalog-driven configuration** — starting point (ERC-20, ERC-721, ERC-1155,
+  ERC-6909, Counter, access control, blank Diamond), optional facets, libraries
+  (ERC-165, etc.), permissions (Ownership, Roles), and framework selection
+  (Foundry, Hardhat with ethers or viem).
+- **Live code generation** — Diamond contract, facet sources, and a deployment
+  script update as you configure.
+- **In-browser compilation** — generated Solidity is compiled in a disposable
+  browser worker with pinned `solc` 0.8.30 and the published
+  `@perfect-abstractions/compose` 0.0.6 source package. Validation covers selector
+  collisions, named storage positions, bytecode size limits, and required
+  inspection selectors.
+- **Local deployment simulation** — Diamond creation gas is measured in a
+  browser-local Paris EVM using EthereumJS 10.1.3, bundled into a separate module
+  worker. There is no RPC, wallet connection, backend, broadcast, or persisted EVM
+  state. A fingerprint binds all source content, settings, compiler/source
+  provenance, selected artifact order, and bytecode; config changes and navigation
+  abort obsolete work. Each job is capped at 30 seconds and each temporary
+  transaction at 30M gas; missing artifacts, unsupported constructors, unlinked
+  bytecode, reverts, and invalid results fail closed.
+- **Open in Remix** — export the generated project to
+  [Remix](https://app.remix.live/) as a URL-encoded source bundle. Only projects
+  whose facets come from the published Compose package can be exported; local
+  template facets are rejected with a clear message.
+- **Export to your terminal** — copy the exact
+  `npx @perfect-abstractions/compose-cli init` command for the current
+  configuration, with an editable project name.
+- **Persistent workspace** — configuration and projects are saved to
+  `localStorage` with versioned migration.
 
-- **Live Preview**: See generated Solidity code as you configure
-- **CLI Command Generator**: Copy the exact `npx @perfect-abstractions/compose init` command for your configuration
-- **Wallet Integration**: Connect wallet via RainbowKit (Sepolia testnet)
-- **Persistent State**: Configuration saved to localStorage
-- **Local Validation**: Generated Solidity is compiled in a disposable browser
-  worker with pinned solc 0.8.30 and the published Compose source package
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
-- Node.js >= 18
+- Node.js 22.18+ or 24 (the test command uses Node's TypeScript support)
 - npm or yarn
 
 ### Installation
@@ -73,7 +85,7 @@ TypeScript support (Node 22.18+ or 24 recommended for the test command).
 npm install
 ```
 
-### Environment Setup
+### Environment setup
 
 Create a `.env` file based on `.env.example`:
 
@@ -81,7 +93,7 @@ Create a `.env` file based on `.env.example`:
 cp .env.example .env
 ```
 
-Get a WalletConnect Project ID from https://cloud.walletconnect.com and add it to `.env`:
+The WalletConnect Project ID is optional and only used if you surface wallet UI:
 
 ```
 VITE_WALLETCONNECT_PROJECT_ID=your_actual_project_id
@@ -102,23 +114,37 @@ npm run build
 ```
 
 The browser compiler assets are prepared from the locked `solc@0.8.30` and
-`@perfect-abstractions/compose@0.0.6` dependencies. Run `npm run compiler:check`
-to compile generated Solidity locally without deploying anything.
+`@perfect-abstractions/compose@0.0.6` dependencies. `npm run compiler:check`
+compiles generated Solidity locally without deploying anything.
 
-### Preview Production Build
+### Preview production build
 
 ```bash
 npm run preview
 ```
 
-### Cloudflare Workers
+## Scripts
 
-`wrangler.jsonc` targets the existing `compose-launchpad` Worker and serves
-Vite's `dist` directory. Its custom build runs `npm run build` before an upload,
-including the pinned browser compiler assets, so a separate dashboard build
-command is optional. The empty `previews` block enables branch previews without
-adding backend bindings or credentials. The app uses hash routes, so both `#/`
-and `#/workspace` load from the same static entry page.
+| Command                  | Description                                                          |
+| ------------------------ | -------------------------------------------------------------------- |
+| `npm run dev`            | Start the Vite dev server (prepares compiler assets first)           |
+| `npm run build`          | Type-check and build for production (prepares compiler assets first) |
+| `npm run preview`        | Serve the production build locally                                   |
+| `npm test`               | Run Vitest unit tests and the dependency-free graph probe            |
+| `npm run typecheck`      | Type-check with `tsc -b`                                             |
+| `npm run lint`           | Lint with `oxlint`                                                   |
+| `npm run compiler:check` | Prepare and verify the pinned browser compiler assets                |
+
+`prebuild`, `pretest`, and `predev` run `compiler:prepare` automatically, so the
+pinned solc and Compose source assets are always current.
+
+## Deployment
+
+`wrangler.jsonc` targets the `compose-builder` Worker and serves Vite's `dist`
+directory. Its custom build runs `npm run build` before upload, including the
+pinned browser compiler assets. The empty `previews` block enables branch
+previews without adding backend bindings or credentials. The app uses hash
+routes, so both `#/` and `#/workspace` load from the same static entry page.
 
 For the connected Git integration, use `npx wrangler deploy` for the production
 branch and `npx wrangler preview` for non-production branches. `npm run preview`
@@ -134,50 +160,42 @@ npx wrangler@4.147.0 deploy --dry-run
 See Cloudflare's [Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/)
 and [custom builds](https://developers.cloudflare.com/workers/wrangler/custom-builds/) documentation.
 
-## Tech Stack
+## Tech stack
 
 - **Vite + React 19 + TypeScript**
-- **shadcn/ui** + **Tailwind CSS v4**
-- **wagmi + viem + RainbowKit** for wallet integration
+- **Tailwind CSS v4** + **Radix UI** components
+- **three** + **@react-three/fiber** + **@react-three/drei** for the composition graph
+- **wagmi + viem + RainbowKit** for wallet integration (Sepolia; provider configured)
+- **EthereumJS** 10.1.3 for the local deployment simulation
 - **Zustand** for state management
-- **lucide-react** for icons
+- **lucide-react** for icons, **sonner** for toasts
+- **Vitest** + **oxlint** + **Prettier** + **Husky** for quality
 
-## Project Structure
+## Project structure
 
 ```
 src/
 ├── components/
-│   ├── ui/              # shadcn/ui components
-│   ├── wizard/          # Wizard step components
-│   └── preview/         # Preview panel
+│   ├── editor/           # Workspace layout, setup panel, project review, source viewport
+│   ├── graph/            # 3D composition graph, layout, interaction, WebGL support
+│   └── ui/               # Shared UI primitives
 ├── lib/
-│   ├── compose-core/    # Extracted from CLI (catalog, selection, renderers)
-│   ├── state/           # Zustand store
-│   └── wagmi/           # Wallet config
-├── types/               # TypeScript types
-└── App.tsx
+│   ├── compose-core/     # Catalog, selection, codegen, compiler, deployment simulation
+│   ├── state/            # Zustand store and workspace persistence
+│   └── wagmi/            # Wallet config
+├── types/                # TypeScript types
+├── App.tsx
+└── main.tsx
+public/
+├── bases/                # Base, library, and access catalog JSON
+├── templates/            # Local facet templates
+└── compiler/             # Pinned solc asset, worker, and Compose source manifest
+scripts/
+├── prepare-browser-compiler.mjs
+├── check-browser-compiler.mjs
+└── browser-compiler-worker.js
 ```
-
-## Phase 2 (Planned)
-
-- [x] In-browser Solidity compilation (solc-wasm)
-- [ ] Interactive project composition preview with Three.js
-- [ ] Direct deployment to Sepolia
-- [ ] Facet deployment flow
 
 ## License
 
 MIT
-
-### Local deployment simulation
-
-Simulation starts only in Workspace Project review after successful compilation.
-EthereumJS packages are pinned to 10.1.3 and bundled into a separate module worker;
-there is no RPC, wallet connection, backend, broadcast, or persisted EVM state.
-The existing pinned solc/source integrity checks remain in place. A fingerprint
-binds all source content, settings, compiler/source provenance, selected artifact
-order and bytecode. Config changes and navigation abort obsolete work.
-Each job is capped at 30 seconds and each temporary transaction at 30M gas;
-missing artifacts, unsupported constructors, unlinked bytecode, reverts and
-invalid results fail closed. Browser integration is checked on the existing
-Cloudflare branch preview before promoting a simulation change to main.
