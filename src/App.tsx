@@ -6,6 +6,7 @@ import { loadBasesCatalog } from '@/lib/compose-core';
 import { PreviewArea } from '@/components/editor/PreviewArea';
 import { ContinueLocallyDialog } from '@/components/editor/ContinueLocallyDialog';
 import { OpenInRemixButton } from '@/components/editor/OpenInRemixButton';
+import { NavbarGradient } from '@/components/navigation/NavbarGradient';
 import { BookOpen, Diamond, Moon, Sun } from 'lucide-react';
 
 function App() {
@@ -50,8 +51,9 @@ function App() {
     <div className="h-dvh bg-background flex overflow-hidden">
       <Toaster position="bottom-right" />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-11 border-b flex-shrink-0" aria-label="Application toolbar">
-          <div className="h-full px-3 sm:px-4 flex items-center justify-end">
+        <header className="app-navbar h-11 flex-shrink-0" aria-label="Application toolbar">
+          <NavbarGradient />
+          <div className="app-navbar-content h-full px-3 sm:px-4 flex items-center justify-end">
             <div className="mr-auto flex items-center gap-2 px-2">
               <img src="/logo.svg" alt="Compose" className="size-5" />
               <span className="hidden sm:inline text-sm font-semibold">Compose Builder</span>
