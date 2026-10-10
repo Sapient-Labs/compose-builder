@@ -1,56 +1,49 @@
-import type { DiamondConfig } from "@/types/config";
+import type { DiamondConfig } from '@/types/config';
+
+export const DEFAULT_PROJECT_NAME = 'my-first-diamond';
 
 function toProjectDirectoryName(name: string): string {
   const directoryName = name
     .trim()
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .replace(/^[._-]+/, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^[._-]+/, '')
     .slice(0, 210);
 
-  return directoryName || "my-diamond";
+  return directoryName || DEFAULT_PROJECT_NAME;
 }
 
-export function buildCliCommand(
-  config: DiamondConfig,
-  projectName = "my-diamond",
-): string {
+export function buildCliCommand(config: DiamondConfig, projectName = DEFAULT_PROJECT_NAME): string {
   const parts = [
-    "npx",
-    "@perfect-abstractions/compose-cli",
-    "init",
+    'npx',
+    '@perfect-abstractions/compose-cli',
+    'init',
     toProjectDirectoryName(projectName),
-    "--yes",
+    '--yes',
   ];
 
   parts.push(`--base ${config.baseKey}`);
   parts.push(`--framework ${config.framework}`);
 
-  if (config.framework === "hardhat" && config.toolbox) {
+  if (config.framework === 'hardhat' && config.toolbox) {
     parts.push(`--toolbox ${config.toolbox}`);
   }
   if (config.selectedLibraries.length > 0) {
-    parts.push(`--libraries ${config.selectedLibraries.join(",")}`);
+    parts.push(`--libraries ${config.selectedLibraries.join(',')}`);
   }
   if (config.selectedExtensions.length > 0) {
-    parts.push(`--extensions ${config.selectedExtensions.join(",")}`);
+    parts.push(`--extensions ${config.selectedExtensions.join(',')}`);
   }
 
-  const ownership = config.selectedAccess.filter((value) =>
-    ["owner", "ownable"].includes(value),
-  );
-  const roleAccess = config.selectedAccess.filter(
-    (value) => !["owner", "ownable"].includes(value),
-  );
+  const ownership = config.selectedAccess.filter((value) => ['owner', 'ownable'].includes(value));
+  const roleAccess = config.selectedAccess.filter((value) => !['owner', 'ownable'].includes(value));
 
   if (ownership.length > 0) parts.push(`--ownership ${ownership[0]}`);
   if (roleAccess.length > 0) {
-    parts.push(`--access-control ${roleAccess.join(",")}`);
+    parts.push(`--access-control ${roleAccess.join(',')}`);
   }
   if (config.selectedAccessExtensions.length > 0) {
-    parts.push(
-      `--access-control-extensions ${config.selectedAccessExtensions.join(",")}`,
-    );
+    parts.push(`--access-control-extensions ${config.selectedAccessExtensions.join(',')}`);
   }
 
-  return parts.join(" ");
+  return parts.join(' ');
 }

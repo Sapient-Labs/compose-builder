@@ -1,21 +1,22 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type { BasesCatalog } from "@/types/catalog";
-import type { DiamondConfig } from "@/types/config";
-import { DEFAULT_CONFIG } from "@/types/config";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { BasesCatalog } from '@/types/catalog';
+import type { DiamondConfig } from '@/types/config';
+import { DEFAULT_CONFIG } from '@/types/config';
 import {
   createProject,
   createWorkspace,
+  DEFAULT_PROJECT_NAME,
   migrateLegacyState,
   parseWorkspace,
   serializeWorkspace,
   WORKSPACE_VERSION,
-} from "./workspace";
-import type { Project, Workspace } from "./workspace";
+} from './workspace';
+import type { Project, Workspace } from './workspace';
 
 const initialWorkspace = createWorkspace();
 
-export type EditorViewMode = "config" | "project";
+export type EditorViewMode = 'config' | 'project';
 
 type LaunchpadState = {
   workspace: Workspace;
@@ -28,7 +29,7 @@ type LaunchpadState = {
 
   setConfig: (config: Partial<DiamondConfig>) => void;
   createProject: (name?: string) => void;
-  updateProject: (patch: Partial<Pick<Project, "name" | "config">>) => void;
+  updateProject: (patch: Partial<Pick<Project, 'name' | 'config'>>) => void;
   deleteProject: () => void;
   selectProject: (projectId: string) => void;
   setCatalog: (catalog: BasesCatalog) => void;
@@ -47,7 +48,7 @@ export const useLaunchpadStore = create<LaunchpadState>()(
       workspace: initialWorkspace,
       activeProject: initialWorkspace.projects[0] ?? null,
       catalog: null,
-      viewMode: "config",
+      viewMode: 'config',
       sidebarCollapsed: false,
       isLoading: false,
       error: null,
@@ -75,7 +76,7 @@ export const useLaunchpadStore = create<LaunchpadState>()(
       createProject: (name) =>
         set((state) => {
           if (state.workspace.projects.length > 0) return state;
-          const project = createProject(DEFAULT_CONFIG, name);
+          const project = createProject(DEFAULT_CONFIG, name ?? DEFAULT_PROJECT_NAME);
           return {
             workspace: { ...state.workspace, activeProjectId: project.id, projects: [project] },
             activeProject: project,
@@ -100,7 +101,7 @@ export const useLaunchpadStore = create<LaunchpadState>()(
 
       deleteProject: () =>
         set((state) => ({
-          workspace: { ...state.workspace, activeProjectId: "", projects: [] },
+          workspace: { ...state.workspace, activeProjectId: '', projects: [] },
           activeProject: null,
         })),
 
@@ -120,13 +121,12 @@ export const useLaunchpadStore = create<LaunchpadState>()(
 
       toggleViewMode: () =>
         set((state) => ({
-          viewMode: state.viewMode === "config" ? "project" : "config",
+          viewMode: state.viewMode === 'config' ? 'project' : 'config',
         })),
 
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
 
-      toggleSidebar: () =>
-        set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       setLoading: (loading) => set({ isLoading: loading }),
 
@@ -135,11 +135,17 @@ export const useLaunchpadStore = create<LaunchpadState>()(
       reset: () =>
         set(() => {
           const workspace = createWorkspace();
-          return { workspace, activeProject: workspace.projects[0] ?? null, viewMode: "config", sidebarCollapsed: false, error: null };
+          return {
+            workspace,
+            activeProject: workspace.projects[0] ?? null,
+            viewMode: 'config',
+            sidebarCollapsed: false,
+            error: null,
+          };
         }),
     }),
     {
-      name: "compose-launchpad",
+      name: 'compose-launchpad',
       version: WORKSPACE_VERSION,
       migrate: (persistedState) => {
         const state = persistedState as Partial<LaunchpadState> | undefined;
@@ -147,7 +153,7 @@ export const useLaunchpadStore = create<LaunchpadState>()(
           const workspace = parseWorkspace(serializeWorkspace(state.workspace));
           return {
             workspace,
-            viewMode: state.viewMode ?? "config",
+            viewMode: state.viewMode ?? 'config',
             sidebarCollapsed: state.sidebarCollapsed ?? false,
           };
         }
@@ -155,30 +161,29 @@ export const useLaunchpadStore = create<LaunchpadState>()(
         if (migrated) {
           return {
             workspace: migrated,
-            viewMode: state?.viewMode ?? "config",
+            viewMode: state?.viewMode ?? 'config',
             sidebarCollapsed: state?.sidebarCollapsed ?? false,
           };
         }
-        return { workspace: createWorkspace(), viewMode: "config", sidebarCollapsed: false };
+        return { workspace: createWorkspace(), viewMode: 'config', sidebarCollapsed: false };
       },
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           useLaunchpadStore.setState({
-            error: error instanceof Error ? error.message : "Saved workspace could not be loaded.",
+            error: error instanceof Error ? error.message : 'Saved workspace could not be loaded.',
           });
           return;
         }
         if (!state) return;
         state.activeProject =
-          state.workspace.projects.find(
-            (item) => item.id === state.workspace.activeProjectId,
-          ) ?? null;
+          state.workspace.projects.find((item) => item.id === state.workspace.activeProjectId) ??
+          null;
       },
       partialize: (state) => ({
         workspace: state.workspace,
         viewMode: state.viewMode,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
-    }
-  )
+    },
+  ),
 );

@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from "react";
-import { useLaunchpadStore } from "@/lib/state/store";
+import { useEffect, useRef, useState } from 'react';
+import { useLaunchpadStore } from '@/lib/state/store';
+import { DEFAULT_PROJECT_NAME } from '@/lib/state/workspace';
 
 export function EditableProjectName() {
   const { activeProject, updateProject } = useLaunchpadStore();
   const [isEditing, setIsEditing] = useState(false);
-  const [draftName, setDraftName] = useState(activeProject?.name ?? "");
+  const [draftName, setDraftName] = useState(activeProject?.name ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!isEditing) {
-      setDraftName(activeProject?.name ?? "");
+      setDraftName(activeProject?.name ?? '');
     }
   }, [activeProject?.id, activeProject?.name, isEditing]);
 
@@ -21,7 +22,7 @@ export function EditableProjectName() {
   }, [draftName, isEditing]);
 
   const save = () => {
-    const name = draftName.trim() || "my-first-diamond";
+    const name = draftName.trim() || DEFAULT_PROJECT_NAME;
     setDraftName(name);
     if (name !== activeProject?.name) updateProject({ name });
   };
@@ -41,7 +42,7 @@ export function EditableProjectName() {
         className="invisible absolute top-0 left-0 whitespace-pre text-md font-semibold"
         aria-hidden="true"
       >
-        {draftName || " "}
+        {draftName || ' '}
       </span>
       {isEditing ? (
         <input
@@ -54,9 +55,9 @@ export function EditableProjectName() {
             setIsEditing(false);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") {
-              setDraftName(activeProject?.name ?? "");
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') {
+              setDraftName(activeProject?.name ?? '');
               setIsEditing(false);
             }
           }}
@@ -65,7 +66,7 @@ export function EditableProjectName() {
         />
       ) : (
         <h1 className="text-md font-semibold truncate px-3 py-1 border border-transparent rounded-md transition-all duration-200 animate-in fade-in zoom-in-95">
-          {activeProject?.name ?? "Untitled project"}
+          {activeProject?.name ?? DEFAULT_PROJECT_NAME}
         </h1>
       )}
     </div>

@@ -1,22 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Terminal, X } from "lucide-react";
-import { useLaunchpadStore } from "@/lib/state/store";
-import { buildCliCommand, planComposition } from "@/lib/compose-core";
-import { Button } from "@/components/ui/button";
-import { CodeBlock } from "@/components/ui/code-block";
+import { useEffect, useMemo, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { Terminal, X } from 'lucide-react';
+import { useLaunchpadStore } from '@/lib/state/store';
+import { buildCliCommand, planComposition } from '@/lib/compose-core';
+import { DEFAULT_PROJECT_NAME } from '@/lib/state/workspace';
+import { Button } from '@/components/ui/button';
+import { CodeBlock } from '@/components/ui/code-block';
 
 export function ContinueLocallyDialog() {
   const { catalog, activeProject, updateProject } = useLaunchpadStore();
-  const [projectName, setProjectName] = useState(activeProject?.name ?? "");
+  const [projectName, setProjectName] = useState(activeProject?.name ?? '');
   const config = activeProject?.config;
 
   useEffect(() => {
-    setProjectName(activeProject?.name ?? "");
+    setProjectName(activeProject?.name ?? '');
   }, [activeProject?.id, activeProject?.name]);
 
   const saveProjectName = () => {
-    const name = projectName.trim() || "my-first-diamond";
+    const name = projectName.trim() || DEFAULT_PROJECT_NAME;
     setProjectName(name);
     if (name !== activeProject?.name) updateProject({ name });
   };
@@ -24,9 +25,7 @@ export function ContinueLocallyDialog() {
     () => (catalog && config ? planComposition(catalog, config) : null),
     [catalog, config],
   );
-  const command = config
-    ? buildCliCommand(config, projectName || "my-diamond")
-    : "";
+  const command = config ? buildCliCommand(config, projectName || DEFAULT_PROJECT_NAME) : '';
 
   return (
     <Dialog.Root>
@@ -46,9 +45,7 @@ export function ContinueLocallyDialog() {
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-background p-6 shadow-2xl focus:outline-none">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Dialog.Title className="text-lg font-semibold">
-                Export your project
-              </Dialog.Title>
+              <Dialog.Title className="text-lg font-semibold">Export your project</Dialog.Title>
               <Dialog.Description className="mt-1 text-sm text-muted-foreground">
                 Scaffold this Compose project in any terminal.
               </Dialog.Description>
@@ -77,7 +74,7 @@ export function ContinueLocallyDialog() {
                     onChange={(event) => setProjectName(event.target.value)}
                     onBlur={saveProjectName}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") {
+                      if (event.key === 'Enter') {
                         event.currentTarget.blur();
                       }
                     }}
@@ -87,8 +84,10 @@ export function ContinueLocallyDialog() {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {config.baseKey === "none" ? "Blank project" : plan.base.label} ·{" "}
-                  {config.framework === "foundry" ? "Foundry" : `Hardhat · ${config.toolbox ?? "ethers"}`}
+                  {config.baseKey === 'none' ? 'Blank project' : plan.base.label} ·{' '}
+                  {config.framework === 'foundry'
+                    ? 'Foundry'
+                    : `Hardhat · ${config.toolbox ?? 'ethers'}`}
                 </p>
               </div>
 
@@ -98,7 +97,8 @@ export function ContinueLocallyDialog() {
               </div>
 
               <p className="mt-3 text-xs text-muted-foreground">
-                Creates your project structure, Diamond contract, deployment script, tests, and configuration.
+                Creates your project structure, Diamond contract, deployment script, tests, and
+                configuration.
               </p>
             </>
           )}
@@ -113,5 +113,3 @@ export function ContinueLocallyDialog() {
     </Dialog.Root>
   );
 }
-
-

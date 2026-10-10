@@ -1,0 +1,86 @@
+/**
+ * Animated gradient orbs for the application toolbar.
+ *
+ * Direct copy of the Compose docs navbar background
+ * (website/src/components/navigation/NavbarGradient/styles.module.css),
+ * adapted from `[data-theme='dark']` to the launchpad's `.dark` class
+ * (next-themes with attribute="class").
+ */
+
+.app-navbar-gradient-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-navbar-gradient-orb-1,
+.app-navbar-gradient-orb-2 {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.15;
+}
+
+.app-navbar-gradient-orb-1 {
+  width: 300px;
+  height: 300px;
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  top: -150px;
+  left: -100px;
+  animation: app-navbar-float-1 20s ease-in-out infinite;
+}
+
+.app-navbar-gradient-orb-2 {
+  width: 250px;
+  height: 250px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  top: -100px;
+  right: -80px;
+  animation: app-navbar-float-2 25s ease-in-out infinite;
+}
+
+.dark .app-navbar-gradient-orb-1 {
+  opacity: 0.08;
+}
+
+.dark .app-navbar-gradient-orb-2 {
+  opacity: 0.08;
+}
+
+@keyframes app-navbar-float-1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(30px, 20px) scale(1.1);
+  }
+}
+
+@keyframes app-navbar-float-2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-20px, 30px) scale(1.15);
+  }
+}
+
+/* Disable animations on mobile for performance (mirrors docs behavior) */
+@media (max-width: 996px) {
+  .app-navbar-gradient-orb-1,
+  .app-navbar-gradient-orb-2 {
+    animation: none;
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-navbar-gradient-orb-1,
+  .app-navbar-gradient-orb-2 {
+    animation: none;
+  }
+}
