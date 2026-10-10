@@ -300,8 +300,6 @@ function SimulatedDeploymentCost({
     [costs, gasPriceGwei, ethPriceUsd],
   );
   const billedPreview = mode === 'fresh' ? freshPreview : registryPreview;
-  const otherPreview = mode === 'fresh' ? registryPreview : freshPreview;
-  const otherLabel = mode === 'fresh' ? 'Predeployed' : 'New';
   if (costs.diamond === null || costs.billed === null) {
     return (
       <p className="text-xs text-destructive" role="alert">

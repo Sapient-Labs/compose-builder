@@ -219,7 +219,7 @@ describe('Gas estimate panel', () => {
     fireEvent.change(screen.getByLabelText('ETH price in USD, approximately USDC'), {
       target: { value: '2000' },
     });
-    expect(screen.getByText(/Not a fee quote/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Etherscan' })).toBeTruthy();
   });
 
   it('shows per-facet gas and prices both deployment assumptions in USDC', () => {
@@ -241,9 +241,9 @@ describe('Gas estimate panel', () => {
     });
     expect(screen.getByText('$16.88')).toBeTruthy();
     expect(screen.getByText(/844,242 gas × 10 Gwei × \$2000 = \$16\.88 USDC/)).toBeTruthy();
-    expect(screen.getByText(/Predeployed ≈ \$8\.48/)).toBeTruthy();
     fireEvent.click(screen.getByLabelText(/Predeployed facets/));
-    expect(screen.getByText(/New ≈ \$16\.88/)).toBeTruthy();
+    expect(screen.getByText('$8.48')).toBeTruthy();
+    expect(screen.getByText(/424,242 gas × 10 Gwei × \$2000 = \$8\.48 USDC/)).toBeTruthy();
   });
 
   it('opens the drawer from the empty USDC preview', () => {
