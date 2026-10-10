@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { PreviewArea } from './PreviewArea';
 import { useLaunchpadStore } from '@/lib/state/store';
-import { buildCliCommand, loadBasesCatalog } from '@/lib/compose-core';
+import { buildCliCommand, DEFAULT_PROJECT_NAME, loadBasesCatalog } from '@/lib/compose-core';
 import { compileDiamond } from '@/lib/compose-core/compiler';
 import { simulateDiamondDeployment } from '@/lib/compose-core/deploymentSimulation';
 
@@ -350,7 +350,7 @@ it('Project command follows current project configuration even while gas recompi
   const command = () =>
     buildCliCommand(
       useLaunchpadStore.getState().activeProject!.config,
-      useLaunchpadStore.getState().activeProject!.name || 'my-diamond',
+      useLaunchpadStore.getState().activeProject!.name || DEFAULT_PROJECT_NAME,
     );
   expect(screen.getByLabelText('Compose command').textContent?.replace(/\n  /g, ' ')).toBe(
     command(),
@@ -358,14 +358,12 @@ it('Project command follows current project configuration even while gas recompi
   vi.mocked(compileDiamond).mockImplementationOnce(() => new Promise(() => {}));
   await act(async () => {
     useLaunchpadStore.getState().updateProject({ name: 'My chosen diamond' });
-    useLaunchpadStore
-      .getState()
-      .setConfig({
-        framework: 'hardhat',
-        toolbox: 'viem',
-        selectedLibraries: ['ERC165Facet'],
-        selectedAccess: ['owner'],
-      });
+    useLaunchpadStore.getState().setConfig({
+      framework: 'hardhat',
+      toolbox: 'viem',
+      selectedLibraries: ['ERC165Facet'],
+      selectedAccess: ['owner'],
+    });
   });
   expect(screen.getByLabelText('Compose command').textContent?.replace(/\n  /g, ' ')).toBe(
     command(),
