@@ -127,13 +127,34 @@ describe('local deployment gas engine', () => {
       '417352',
       '727864',
     ]);
+    expect(results.map((result) => result.facetsTotalGasSpent)).toEqual([
+      '573962',
+      '851318',
+      '1250240',
+      '1865828',
+    ]);
+    expect(results.map((result) => result.fullTotalGasSpent)).toEqual([
+      '835201',
+      '1193862',
+      '1667592',
+      '2593692',
+    ]);
     expect(results.map((result) => result.facetCount)).toEqual([1, 3, 4, 8]);
     expect(results.every((result) => result.fork === 'paris')).toBe(true);
-    for (const result of results) {
+    for (const [index, result] of results.entries()) {
       expect(BigInt(result.totalGasSpent)).toBe(
         BigInt(result.intrinsicGas) + BigInt(result.executionGasUsed) - BigInt(result.gasRefund),
       );
-      // These are Diamond-only values: even the blank setup facet costs 573,962.
+      // Diamond-only measurement plus a full fresh-deploy total: even the blank setup facet costs 573,962.
+      expect(result.facetDeployments.map((entry) => entry.name)).toEqual(
+        fixtures[index].facets.map((facet) => facet.name),
+      );
+      expect(
+        result.facetDeployments.reduce((sum, entry) => sum + BigInt(entry.totalGasSpent), 0n),
+      ).toBe(BigInt(result.facetsTotalGasSpent));
+      expect(BigInt(result.fullTotalGasSpent)).toBe(
+        BigInt(result.facetsTotalGasSpent) + BigInt(result.totalGasSpent),
+      );
       expect(result).not.toHaveProperty('facetGas');
     }
   });
